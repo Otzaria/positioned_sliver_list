@@ -565,8 +565,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
 
     if (!_didResolveInitialScrollPosition &&
         _initialScrollPosition == InitialScrollPosition.end &&
-        totalChildCount > 0 &&
-        constraints.scrollOffset <= precisionErrorTolerance) {
+        totalChildCount > 0) {
       final viewportExtent = constraints.viewportMainAxisExtent;
       if (viewportExtent.isFinite && viewportExtent > 0) {
         final targetOffset =
@@ -575,13 +574,11 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
                 : math.max(0.0, initialExtent - viewportExtent);
         final correction = targetOffset - constraints.scrollOffset;
         if (correction.abs() > precisionErrorTolerance) {
-          _didResolveInitialScrollPosition = true;
           ++layoutPass.correctionCount;
           geometry = SliverGeometry(scrollOffsetCorrection: correction);
           childManager.didFinishLayout();
           return;
         }
-        _didResolveInitialScrollPosition = true;
       }
     }
 
@@ -1023,6 +1020,26 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     }
 
     final endScrollOffset = _totalExtent();
+
+    if (!_didResolveInitialScrollPosition &&
+        _initialScrollPosition == InitialScrollPosition.end &&
+        totalChildCount > 0) {
+      final viewportExtent = constraints.viewportMainAxisExtent;
+      if (viewportExtent.isFinite && viewportExtent > 0) {
+        final targetOffset =
+            constraints.growthDirection == GrowthDirection.reverse
+                ? 0.0
+                : math.max(0.0, endScrollOffset - viewportExtent);
+        final correction = targetOffset - constraints.scrollOffset;
+        if (correction.abs() > precisionErrorTolerance) {
+          ++layoutPass.correctionCount;
+          geometry = SliverGeometry(scrollOffsetCorrection: correction);
+          childManager.didFinishLayout();
+          return;
+        }
+      }
+      _didResolveInitialScrollPosition = true;
+    }
     final cacheStart = constraints.scrollOffset + constraints.cacheOrigin;
     final lastChildEnd =
         childScrollOffset(lastChild!)! + paintExtentOf(lastChild!);
