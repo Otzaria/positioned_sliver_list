@@ -38,6 +38,7 @@ class SuperListView extends BoxScrollView {
     this.extentEstimation,
     this.extentPrecalculationPolicy,
     this.delayPopulatingCacheArea = false,
+    this.initialScrollPosition = InitialScrollPosition.start,
   })  : childrenDelegate = SliverChildListDelegate(
           children,
           addAutomaticKeepAlives: addAutomaticKeepAlives,
@@ -76,6 +77,7 @@ class SuperListView extends BoxScrollView {
     this.extentEstimation,
     this.extentPrecalculationPolicy,
     this.delayPopulatingCacheArea = false,
+    this.initialScrollPosition = InitialScrollPosition.start,
   })  : assert(itemCount == null || itemCount >= 0),
         assert(semanticChildCount == null || semanticChildCount <= itemCount!),
         childrenDelegate = SliverChildBuilderDelegate(
@@ -118,6 +120,7 @@ class SuperListView extends BoxScrollView {
     this.extentEstimation,
     this.extentPrecalculationPolicy,
     this.delayPopulatingCacheArea = false,
+    this.initialScrollPosition = InitialScrollPosition.start,
   })  : assert(itemCount >= 0),
         childrenDelegate = SliverChildBuilderDelegate(
           (BuildContext context, int index) {
@@ -163,6 +166,7 @@ class SuperListView extends BoxScrollView {
     this.extentEstimation,
     this.extentPrecalculationPolicy,
     this.delayPopulatingCacheArea = false,
+    this.initialScrollPosition = InitialScrollPosition.start,
   });
 
   /// A delegate that provides the children for the [ListView].
@@ -199,6 +203,9 @@ class SuperListView extends BoxScrollView {
   /// are only built after the scrolling slows down.
   final bool delayPopulatingCacheArea;
 
+  /// Where the list should begin when it is laid out for the first time.
+  final InitialScrollPosition initialScrollPosition;
+
   @override
   Widget buildChildLayout(BuildContext context) {
     return SuperSliverList(
@@ -207,6 +214,7 @@ class SuperListView extends BoxScrollView {
       delayPopulatingCacheArea: delayPopulatingCacheArea,
       extentEstimation: extentEstimation,
       extentPrecalculationPolicy: extentPrecalculationPolicy,
+      initialScrollPosition: initialScrollPosition,
     );
   }
 

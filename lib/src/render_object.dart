@@ -1,3 +1,5 @@
+import "dart:math" as math;
+
 import "package:flutter/foundation.dart";
 import "package:flutter/material.dart";
 import "package:flutter/rendering.dart";
@@ -75,7 +77,10 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     required this.estimateExtent,
     required this.delayPopulatingCacheArea,
     required this.layoutKeptAliveChildren,
-  }) {
+    required InitialScrollPosition initialScrollPosition,
+  })  : _initialScrollPosition = initialScrollPosition,
+        _didResolveInitialScrollPosition =
+            initialScrollPosition == InitialScrollPosition.start {
     this.extentPrecalculationPolicy = extentPrecalculationPolicy;
   }
 
@@ -96,6 +101,19 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
   ExtentEstimationProvider estimateExtent;
   bool delayPopulatingCacheArea;
   bool layoutKeptAliveChildren = false;
+  InitialScrollPosition _initialScrollPosition;
+  bool _didResolveInitialScrollPosition;
+
+  InitialScrollPosition get initialScrollPosition => _initialScrollPosition;
+  set initialScrollPosition(InitialScrollPosition value) {
+    if (_initialScrollPosition == value) {
+      return;
+    }
+    _initialScrollPosition = value;
+    _didResolveInitialScrollPosition =
+        value == InitialScrollPosition.start ? true : false;
+    markNeedsLayout();
+  }
 
   bool _shouldPrecalculateExtents(LayoutPass pass) {
     final state = pass.getLayoutState(this);
@@ -515,6 +533,11 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     final BoxConstraints childConstraints = constraints.asBoxConstraints();
     final totalChildCount = childManager.childCount;
 
+    if (_initialScrollPosition == InitialScrollPosition.end &&
+        totalChildCount == 0) {
+      _didResolveInitialScrollPosition = false;
+    }
+
     _extentManager.resize(totalChildCount);
 
     final bool crossAxisResizing;
@@ -539,6 +562,28 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
 
     // This is also the last extent that this sliver list reported.
     final initialExtent = _totalExtent();
+
+    if (!_didResolveInitialScrollPosition &&
+        _initialScrollPosition == InitialScrollPosition.end &&
+        totalChildCount > 0 &&
+        constraints.scrollOffset <= precisionErrorTolerance) {
+      final viewportExtent = constraints.viewportMainAxisExtent;
+      if (viewportExtent.isFinite && viewportExtent > 0) {
+        final targetOffset =
+            constraints.growthDirection == GrowthDirection.reverse
+                ? 0.0
+                : math.max(0.0, initialExtent - viewportExtent);
+        final correction = targetOffset - constraints.scrollOffset;
+        if (correction.abs() > precisionErrorTolerance) {
+          _didResolveInitialScrollPosition = true;
+          ++layoutPass.correctionCount;
+          geometry = SliverGeometry(scrollOffsetCorrection: correction);
+          childManager.didFinishLayout();
+          return;
+        }
+        _didResolveInitialScrollPosition = true;
+      }
+    }
 
     // Viewport is not at the beginning.
     final viewportIsScrolled = (constraints.viewportMainAxisExtent -
@@ -941,7 +986,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     if (anchoredAtEnd &&
         (crossAxisResizing || layoutState.didAddInitialChild) &&
         _totalExtent() != initialExtent) {
-      _log.fine(() => 
+      _log.fine(() =>
           "Adjusting correction for extent change by ${_totalExtent() - initialExtent}");
       scrollCorrection += _totalExtent() - initialExtent;
     }
@@ -1012,8 +1057,9 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       hasVisualOverflow: endScrollOffset > constraints.remainingPaintExtent ||
           constraints.scrollOffset > 0.0,
     );
-    _log.fine(() =>
-      "Have geometry for $_logIdentifier (scroll extent: $endScrollOffset, paint extent: $paintExtent, cache consumed: $cacheConsumed, dirty extents: ${_extentManager.hasDirtyItems})",
+    _log.fine(
+      () =>
+          "Have geometry for $_logIdentifier (scroll extent: $endScrollOffset, paint extent: $paintExtent, cache consumed: $cacheConsumed, dirty extents: ${_extentManager.hasDirtyItems})",
     );
 
     if (paintExtent < constraints.remainingPaintExtent) {

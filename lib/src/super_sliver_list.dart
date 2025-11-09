@@ -12,6 +12,17 @@ import "render_object.dart";
 
 final _log = Logger("SuperSliverList");
 
+/// Controls where the viewport should be positioned during the first layout
+/// of a list.
+enum InitialScrollPosition {
+  /// Position the viewport at the beginning of the list.
+  start,
+
+  /// Position the viewport at the end of the list so the newest content is
+  /// visible without an explicit scroll.
+  end,
+}
+
 @Deprecated("Use ListController instead.")
 typedef ExtentController = ListController;
 
@@ -392,6 +403,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.extentEstimation,
     this.delayPopulatingCacheArea = true,
     this.layoutKeptAliveChildren = false,
+    this.initialScrollPosition = InitialScrollPosition.start,
   });
 
   /// Creates a SuperSliverList from widget builder.
@@ -407,6 +419,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.extentEstimation,
     this.delayPopulatingCacheArea = true,
     this.layoutKeptAliveChildren = false,
+    this.initialScrollPosition = InitialScrollPosition.start,
     bool addAutomaticKeepAlives = true,
     bool addRepaintBoundaries = true,
     bool addSemanticIndexes = true,
@@ -435,6 +448,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.extentEstimation,
     this.delayPopulatingCacheArea = true,
     this.layoutKeptAliveChildren = false,
+    this.initialScrollPosition = InitialScrollPosition.start,
     int? itemCount,
     bool addAutomaticKeepAlives = true,
     bool addRepaintBoundaries = true,
@@ -480,6 +494,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.extentEstimation,
     this.delayPopulatingCacheArea = true,
     this.layoutKeptAliveChildren = false,
+    this.initialScrollPosition = InitialScrollPosition.start,
     bool addAutomaticKeepAlives = true,
     bool addRepaintBoundaries = true,
     bool addSemanticIndexes = true,
@@ -528,6 +543,9 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
   /// maintained and proper paint transform is applied.
   final bool layoutKeptAliveChildren;
 
+  /// Where the list should begin when it is laid out for the first time.
+  final InitialScrollPosition initialScrollPosition;
+
   static SuperSliverListLayoutBudget layoutBudget =
       _TimeSuperSliverListLayoutBudget(
     budget: const Duration(milliseconds: 3),
@@ -546,6 +564,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
       estimateExtent: extentEstimation ?? _defaultEstimateExtent,
       delayPopulatingCacheArea: delayPopulatingCacheArea,
       layoutKeptAliveChildren: layoutKeptAliveChildren,
+      initialScrollPosition: initialScrollPosition,
     );
   }
 
@@ -561,6 +580,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
         extentEstimation ?? _defaultEstimateExtent;
     renderSliverList.delayPopulatingCacheArea = delayPopulatingCacheArea;
     renderSliverList.layoutKeptAliveChildren = layoutKeptAliveChildren;
+    renderSliverList.initialScrollPosition = initialScrollPosition;
   }
 }
 
