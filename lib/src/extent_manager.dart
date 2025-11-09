@@ -17,6 +17,27 @@ abstract class ExtentManagerDelegate {
   });
 }
 
+@immutable
+class ItemRange {
+  const ItemRange(this.first, this.last)
+      : assert(first >= 0),
+        assert(last >= first);
+
+  final int first;
+  final int last;
+
+  @override
+  bool operator ==(Object other) {
+    return other is ItemRange && other.first == first && other.last == last;
+  }
+
+  @override
+  int get hashCode => Object.hash(first, last);
+
+  @override
+  String toString() => "ItemRange($first, $last)";
+}
+
 class ExtentManager with ChangeNotifier {
   ExtentManager({required this.delegate});
 
@@ -25,15 +46,36 @@ class ExtentManager with ChangeNotifier {
 
   final ExtentManagerDelegate delegate;
 
-  double get correctionPercentage => _afterCorrection / _beforeCorrection;
+  double get correctionPercentage {
+    if (_beforeCorrection.abs() < precisionErrorTolerance) {
+      return 1.0;
+    }
+    return _afterCorrection / _beforeCorrection;
+  }
 
   void setExtent(int index, double extent, {bool isEstimation = false}) {
+    final oldExtent = _extentList[index];
+    final extentChanged = oldExtent != extent;
+    bool wasDirty = false;
+
+    if (!extentChanged && !isEstimation && !_isModified) {
+      wasDirty = _extentList.isDirty(index);
+    }
+
     if (!isEstimation) {
-      _beforeCorrection += _extentList[index];
+      _beforeCorrection += oldExtent;
       _afterCorrection += extent;
     }
+
     _extentList.setExtent(index, extent, isEstimation: isEstimation);
-    _isModified = true;
+
+    if (!_isModified) {
+      if (extentChanged) {
+        _isModified = true;
+      } else if (!isEstimation && wasDirty) {
+        _isModified = true;
+      }
+    }
   }
 
   void markAllDirty() {
@@ -100,10 +142,10 @@ class ExtentManager with ChangeNotifier {
       // Not reporting children means there are no visible children - set the
       // visible range to null.
       if (!_didReportVisibleChildren) {
-        reportVisibleChildren(null);
+        reportVisibleChildrenRange(null, null);
       }
       if (!_didReportUnobstructedVisibleChildren) {
-        reportUnobstructedVisibleChildren(null);
+        reportUnobstructedVisibleChildrenRange(null, null);
       }
       _layoutInProgress = false;
       if (_isModified) {
@@ -112,29 +154,64 @@ class ExtentManager with ChangeNotifier {
     }
   }
 
-  void reportVisibleChildren((int, int)? range) {
+  void reportVisibleChildrenRange(int? start, int? end) {
     assert(_layoutInProgress);
-    if (_visibleRange != range) {
-      _visibleRange = range;
-      _isModified = true;
+    final current = _visibleRange;
+    if (start == null || end == null) {
+      if (current != null) {
+        _visibleRange = null;
+        _isModified = true;
+      }
+      _didReportVisibleChildren = true;
+      return;
     }
+
+    if (current != null && current.first == start && current.last == end) {
+      _didReportVisibleChildren = true;
+      return;
+    }
+
+    _visibleRange = ItemRange(start, end);
+    _isModified = true;
     _didReportVisibleChildren = true;
   }
 
-  void reportUnobstructedVisibleChildren((int, int)? range) {
-    assert(_layoutInProgress);
-    if (_unobstructedVisibleRange != range) {
-      _unobstructedVisibleRange = range;
-      _isModified = true;
+  @Deprecated("Use reportVisibleChildrenRange")
+  void reportVisibleChildren((int, int)? range) {
+    if (range == null) {
+      reportVisibleChildrenRange(null, null);
+    } else {
+      reportVisibleChildrenRange(range.$1, range.$2);
     }
+  }
+
+  void reportUnobstructedVisibleChildrenRange(int? start, int? end) {
+    assert(_layoutInProgress);
+    final current = _unobstructedVisibleRange;
+    if (start == null || end == null) {
+      if (current != null) {
+        _unobstructedVisibleRange = null;
+        _isModified = true;
+      }
+      _didReportUnobstructedVisibleChildren = true;
+      return;
+    }
+
+    if (current != null && current.first == start && current.last == end) {
+      _didReportUnobstructedVisibleChildren = true;
+      return;
+    }
+
+    _unobstructedVisibleRange = ItemRange(start, end);
+    _isModified = true;
     _didReportUnobstructedVisibleChildren = true;
   }
 
-  (int, int)? get visibleRange => _visibleRange;
-  (int, int)? _visibleRange;
+  ItemRange? get visibleRange => _visibleRange;
+  ItemRange? _visibleRange;
 
-  (int, int)? get unobstructedVisibleRange => _unobstructedVisibleRange;
-  (int, int)? _unobstructedVisibleRange;
+  ItemRange? get unobstructedVisibleRange => _unobstructedVisibleRange;
+  ItemRange? _unobstructedVisibleRange;
 
   int get numberOfItems => _extentList.length;
 

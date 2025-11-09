@@ -294,7 +294,13 @@ class ExtentList {
   }
 
   FenwickTree _getOrBuildFenwickTree() {
-    _fenwickTree ??= FenwickTree.fromList(list: _extents._list);
+    final length = _extents.length;
+    final current = _fenwickTree;
+    if (current == null || current.size != length) {
+      final backing = _extents._list;
+      final view = Float64List.sublistView(backing, 0, length);
+      _fenwickTree = FenwickTree.fromList(list: view);
+    }
     return _fenwickTree!;
   }
 
