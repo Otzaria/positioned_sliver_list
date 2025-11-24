@@ -1,3 +1,4 @@
+export "src/extent_manager.dart" show ItemRange;
 export "src/layout_budget.dart";
 export "src/list_view.dart";
 export "src/scroll_physics.dart";
