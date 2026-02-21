@@ -315,7 +315,12 @@ class ListController extends ChangeNotifier {
     }
   }
 
-  @visibleForTesting
+  /// Returns the scroll offset needed to reveal the item at [index] with
+  /// the given [alignment] in the viewport.
+  ///
+  /// The [alignment] works the same as in [jumpToItem] and [animateToItem].
+  /// The optional [rect] parameter describes which area of the target item
+  /// should be revealed.
   double getOffsetToReveal(int index, double alignment, {Rect? rect}) {
     assert(_delegate != null, "ListController is not attached.");
     return _delegate!.getOffsetToReveal(
