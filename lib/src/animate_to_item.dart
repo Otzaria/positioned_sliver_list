@@ -24,6 +24,7 @@ class AnimateToItem {
   final Curve Function(double estimatedDistance) curve;
 
   double lastPosition = 0.0;
+  AnimationController? _controller;
 
   void animate() {
     final index = this.index();
@@ -42,9 +43,10 @@ class AnimateToItem {
       vsync: position.context.vsync,
       duration: duration(estimatedDistance),
     );
+    _controller = controller;
     controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        controller.dispose();
+        cancel();
       }
     });
     final animation = CurvedAnimation(
@@ -55,8 +57,7 @@ class AnimateToItem {
       final value = animation.value;
       final index = this.index();
       if (index == null) {
-        controller.stop();
-        controller.dispose();
+        cancel();
         return;
       }
       var targetPosition = extentManager.getOffsetToReveal(
@@ -85,4 +86,17 @@ class AnimateToItem {
     });
     controller.forward();
   }
+
+  /// Cancels the animation and disposes resources.
+  void cancel() {
+    final controller = _controller;
+    if (controller != null) {
+      _controller = null;
+      controller.stop();
+      controller.dispose();
+    }
+  }
+
+  /// Whether the animation is currently running.
+  bool get isAnimating => _controller?.isAnimating ?? false;
 }
