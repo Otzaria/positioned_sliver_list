@@ -142,9 +142,11 @@ class ExtentList {
     }
 
     final delta = extent - _extents[index];
-    _extents[index] = extent;
-    _totalExtent += delta;
-    _fenwickTree?.update(index, delta);
+    if (delta != 0.0) {
+      _extents[index] = extent;
+      _totalExtent += delta;
+      _fenwickTree?.update(index, delta);
+    }
   }
 
   /// Returns index of first item in range of items with valid extents.
