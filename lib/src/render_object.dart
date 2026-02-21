@@ -599,19 +599,21 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
         (layoutPass.childScrollOffsetEstimation == false ||
             layoutPass.sliverIsBeforeSliverWithOffsetEstimation(this));
 
-    _log.fine(
-      () => "Laying out $_logIdentifier "
-          "("
-          "anchored at end: $anchoredAtEnd, "
-          "initial extent: ${initialExtent.format()}, "
-          "scroll offset: ${constraints.scrollOffset.format()}, "
-          "overlap: ${constraints.overlap}, "
-          "remaining paint extent: ${constraints.remainingPaintExtent.format()}, "
-          "cache: ${constraints.cacheOrigin.format()} - "
-          "${constraints.remainingCacheExtent.format()}, "
-          "preceding: ${constraints.precedingScrollExtent.format()}"
-          ")",
-    );
+    if (_log.isLoggable(Level.FINE)) {
+      _log.fine(
+        "Laying out $_logIdentifier "
+        "("
+        "anchored at end: $anchoredAtEnd, "
+        "initial extent: ${initialExtent.format()}, "
+        "scroll offset: ${constraints.scrollOffset.format()}, "
+        "overlap: ${constraints.overlap}, "
+        "remaining paint extent: ${constraints.remainingPaintExtent.format()}, "
+        "cache: ${constraints.cacheOrigin.format()} - "
+        "${constraints.remainingCacheExtent.format()}, "
+        "preceding: ${constraints.precedingScrollExtent.format()}"
+        ")",
+      );
+    }
 
     // Scroll offset including cache area.
     var startOffset = constraints.scrollOffset + constraints.cacheOrigin;
@@ -766,7 +768,9 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
           ? totalChildCount - 1
           : indexForOffset(firstChildScrollOffset) ?? totalChildCount - 1;
 
-      _log.fine(() => "Adding initial child with index $firstChildIndex");
+      if (_log.isLoggable(Level.FINE)) {
+        _log.fine("Adding initial child with index $firstChildIndex");
+      }
 
       if (!addInitialChild(
         index: firstChildIndex,
@@ -983,8 +987,11 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     if (anchoredAtEnd &&
         (crossAxisResizing || layoutState.didAddInitialChild) &&
         _totalExtent() != initialExtent) {
-      _log.fine(() =>
-          "Adjusting correction for extent change by ${_totalExtent() - initialExtent}");
+      if (_log.isLoggable(Level.FINE)) {
+        _log.fine(
+          "Adjusting correction for extent change by ${_totalExtent() - initialExtent}",
+        );
+      }
       scrollCorrection += _totalExtent() - initialExtent;
     }
 
@@ -1074,10 +1081,11 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       hasVisualOverflow: endScrollOffset > constraints.remainingPaintExtent ||
           constraints.scrollOffset > 0.0,
     );
-    _log.fine(
-      () =>
-          "Have geometry for $_logIdentifier (scroll extent: $endScrollOffset, paint extent: $paintExtent, cache consumed: $cacheConsumed, dirty extents: ${_extentManager.hasDirtyItems})",
-    );
+    if (_log.isLoggable(Level.FINE)) {
+      _log.fine(
+        "Have geometry for $_logIdentifier (scroll extent: $endScrollOffset, paint extent: $paintExtent, cache consumed: $cacheConsumed, dirty extents: ${_extentManager.hasDirtyItems})",
+      );
+    }
 
     if (paintExtent < constraints.remainingPaintExtent) {
       childManager.setDidUnderflow(true);
