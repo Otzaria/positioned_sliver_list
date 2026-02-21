@@ -985,7 +985,9 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     // child. Note that it may take multiple layout tries to reach the final layout
     // so didAddInitialChild must be tracked through entire layout pass.
     if (anchoredAtEnd &&
-        (crossAxisResizing || layoutState.didAddInitialChild) &&
+        (crossAxisResizing ||
+            layoutState.didAddInitialChild ||
+            (_extentManager.stickTarget?.isBottom ?? false)) &&
         _totalExtent() != initialExtent) {
       if (_log.isLoggable(Level.FINE)) {
         _log.fine(

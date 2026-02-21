@@ -9,6 +9,7 @@ import "element.dart";
 import "extent_manager.dart";
 import "layout_budget.dart";
 import "render_object.dart";
+import "stick_target.dart";
 
 final _log = Logger("SuperSliverList");
 
@@ -94,6 +95,21 @@ class ListController extends ChangeNotifier {
     this.onAttached,
     this.onDetached,
   });
+
+  StickTarget? _stickTarget;
+
+  /// The current stick target.
+  ///
+  /// Managed by [StickToTarget]. When set to [StickTarget.bottom], the
+  /// render object applies zero-lag scroll corrections during layout.
+  /// When set to an item-based target, the [StickToTarget] widget handles
+  /// positioning via post-frame callbacks.
+  StickTarget? get stickTarget => _stickTarget;
+  set stickTarget(StickTarget? value) {
+    if (_stickTarget == value) return;
+    _stickTarget = value;
+    _delegate?.stickTarget = value;
+  }
 
   /// Callback invoked when the controller is attached to a [SuperSliverList].
   final VoidCallback? onAttached;
@@ -301,6 +317,7 @@ class ListController extends ChangeNotifier {
     }
     _delegate?.removeListener(notifyListeners);
     _delegate = delegate;
+    _delegate?.stickTarget = _stickTarget;
     _delegate?.addListener(notifyListeners);
     if (_delegate != null) {
       onAttached?.call();

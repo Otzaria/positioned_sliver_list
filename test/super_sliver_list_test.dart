@@ -552,72 +552,72 @@ void main() async {
           preciseLayout: false,
         ),
       );
-      expect(list.slivers[0].listController.visibleRange, equals((0, 3)));
+      expect(list.slivers[0].listController.visibleRange, equals(const ItemRange(0, 3)));
       expect(list.slivers[0].listController.unobstructedVisibleRange,
-          equals((0, 3)));
+          equals(const ItemRange(0, 3)));
       expect(list.slivers[1].listController.visibleRange, isNull);
 
       controller.jumpTo(100);
       await tester.pump();
 
-      expect(list.slivers[0].listController.visibleRange, equals((0, 4)));
+      expect(list.slivers[0].listController.visibleRange, equals(const ItemRange(0, 4)));
       expect(list.slivers[0].listController.unobstructedVisibleRange,
-          equals((1, 4)));
+          equals(const ItemRange(1, 4)));
       expect(list.slivers[1].listController.visibleRange, isNull);
 
       controller.jumpTo(199);
       await tester.pump();
 
-      expect(list.slivers[0].listController.visibleRange, equals((0, 5)));
+      expect(list.slivers[0].listController.visibleRange, equals(const ItemRange(0, 5)));
       expect(list.slivers[0].listController.unobstructedVisibleRange,
-          equals((1, 5)));
+          equals(const ItemRange(1, 5)));
       expect(list.slivers[1].listController.visibleRange, isNull);
 
       controller.jumpTo(200);
       await tester.pump();
 
-      expect(list.slivers[0].listController.visibleRange, equals((1, 5)));
+      expect(list.slivers[0].listController.visibleRange, equals(const ItemRange(1, 5)));
       expect(list.slivers[0].listController.unobstructedVisibleRange,
-          equals((2, 5)));
+          equals(const ItemRange(2, 5)));
       expect(list.slivers[1].listController.visibleRange, isNull);
 
       controller.jumpTo(299);
       await tester.pump();
 
-      expect(list.slivers[0].listController.visibleRange, equals((1, 5)));
+      expect(list.slivers[0].listController.visibleRange, equals(const ItemRange(1, 5)));
       expect(list.slivers[0].listController.unobstructedVisibleRange,
-          equals((2, 5)));
-      expect(list.slivers[1].listController.visibleRange, equals((0, 0)));
+          equals(const ItemRange(2, 5)));
+      expect(list.slivers[1].listController.visibleRange, equals(const ItemRange(0, 0)));
       expect(list.slivers[1].listController.unobstructedVisibleRange,
-          equals((0, 0)));
+          equals(const ItemRange(0, 0)));
 
       controller.jumpTo(300);
       await tester.pump();
 
-      expect(list.slivers[0].listController.visibleRange, equals((2, 5)));
+      expect(list.slivers[0].listController.visibleRange, equals(const ItemRange(2, 5)));
       expect(list.slivers[0].listController.unobstructedVisibleRange,
-          equals((3, 5)));
-      expect(list.slivers[1].listController.visibleRange, equals((0, 0)));
+          equals(const ItemRange(3, 5)));
+      expect(list.slivers[1].listController.visibleRange, equals(const ItemRange(0, 0)));
       expect(list.slivers[1].listController.unobstructedVisibleRange,
-          equals((0, 0)));
+          equals(const ItemRange(0, 0)));
 
       controller.jumpTo(600);
       await tester.pump();
 
-      expect(list.slivers[0].listController.visibleRange, equals((5, 5)));
+      expect(list.slivers[0].listController.visibleRange, equals(const ItemRange(5, 5)));
       expect(list.slivers[0].listController.unobstructedVisibleRange, isNull);
-      expect(list.slivers[1].listController.visibleRange, equals((0, 3)));
+      expect(list.slivers[1].listController.visibleRange, equals(const ItemRange(0, 3)));
       expect(list.slivers[1].listController.unobstructedVisibleRange,
-          equals((0, 3)));
+          equals(const ItemRange(0, 3)));
 
       controller.jumpTo(700);
       await tester.pump();
 
       expect(list.slivers[0].listController.visibleRange, isNull);
       expect(list.slivers[0].listController.unobstructedVisibleRange, isNull);
-      expect(list.slivers[1].listController.visibleRange, equals((0, 4)));
+      expect(list.slivers[1].listController.visibleRange, equals(const ItemRange(0, 4)));
       expect(list.slivers[1].listController.unobstructedVisibleRange,
-          equals((1, 4)));
+          equals(const ItemRange(1, 4)));
     });
 
     testWidgets("kept alive widgets are laid out", (tester) async {

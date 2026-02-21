@@ -3,6 +3,7 @@ import "dart:ui";
 import "package:flutter/foundation.dart";
 
 import "extent_list.dart";
+import "stick_target.dart";
 
 abstract class ExtentManagerDelegate {
   const ExtentManagerDelegate();
@@ -46,11 +47,29 @@ class ExtentManager with ChangeNotifier {
 
   final ExtentManagerDelegate delegate;
 
+  /// The current stick target, if any.
+  ///
+  /// When [StickTarget.isBottom] is `true`, the render object applies scroll
+  /// offset corrections during layout to keep the trailing edge pinned.
+  StickTarget? stickTarget;
+
   double get correctionPercentage {
+    // Handle edge cases to avoid division by zero and invalid results
     if (_beforeCorrection.abs() < precisionErrorTolerance) {
       return 1.0;
     }
-    return _afterCorrection / _beforeCorrection;
+    
+    final result = _afterCorrection / _beforeCorrection;
+    
+    // Sanity check: if result is NaN or infinite, something went wrong
+    // Return 1.0 (no correction) as a safe fallback
+    if (!result.isFinite) {
+      assert(false, "correctionPercentage resulted in non-finite value: "
+          "beforeCorrection=$_beforeCorrection, afterCorrection=$_afterCorrection");
+      return 1.0;
+    }
+    
+    return result;
   }
 
   void setExtent(int index, double extent, {bool isEstimation = false}) {
