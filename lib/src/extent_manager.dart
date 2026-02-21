@@ -55,7 +55,9 @@ class ExtentManager with ChangeNotifier {
 
   void setExtent(int index, double extent, {bool isEstimation = false}) {
     final oldExtent = _extentList[index];
-    final extentChanged = oldExtent != extent;
+    // Use tolerance for comparison to avoid spurious notifications from 
+    // floating-point precision errors
+    final extentChanged = (oldExtent - extent).abs() > precisionErrorTolerance;
     bool wasDirty = false;
 
     if (!extentChanged && !isEstimation && !_isModified) {
