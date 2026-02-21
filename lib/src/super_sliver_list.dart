@@ -12,6 +12,28 @@ import "render_object.dart";
 
 final _log = Logger("SuperSliverList");
 
+/// Handle for a running animation started by [ListController.animateToItem].
+///
+/// Use [cancel] to stop the animation and dispose its resources. If the
+/// animation completes normally, resources are disposed automatically.
+class AnimationHandle {
+  AnimationHandle._(this._animations);
+
+  final List<AnimateToItem> _animations;
+
+  /// Cancels the animation and disposes resources.
+  ///
+  /// Safe to call multiple times or after the animation has already completed.
+  void cancel() {
+    for (final animation in _animations) {
+      animation.cancel();
+    }
+  }
+
+  /// Whether any of the animations are still running.
+  bool get isAnimating => _animations.any((a) => a.isAnimating);
+}
+
 /// Controls where the viewport should be positioned during the first layout
 /// of a list.
 enum InitialScrollPosition {
@@ -135,7 +157,11 @@ class ListController extends ChangeNotifier {
   /// edge of the viewport. If the value is 0.5, the item will be positioned in
   /// the middle of the viewport. If the value is 1.0, the item will be
   /// positioned at the trailing edge of the viewport.
-  void animateToItem({
+  ///
+  /// Returns an [AnimationHandle] that can be used to [AnimationHandle.cancel]
+  /// the animation. If the animation is not cancelled, it will complete
+  /// normally and dispose its resources.
+  AnimationHandle animateToItem({
     required ValueGetter<int?> index,
     required ScrollController scrollController,
     required double alignment,
@@ -144,8 +170,9 @@ class ListController extends ChangeNotifier {
     Rect? rect,
   }) {
     assert(_delegate != null, "ListController is not attached.");
+    final items = <AnimateToItem>[];
     for (final position in scrollController.positions) {
-      AnimateToItem(
+      final item = AnimateToItem(
         extentManager: _delegate!,
         index: index,
         alignment: alignment,
@@ -153,8 +180,11 @@ class ListController extends ChangeNotifier {
         position: position,
         curve: curve,
         duration: duration,
-      ).animate();
+      );
+      item.animate();
+      items.add(item);
     }
+    return AnimationHandle._(items);
   }
 
   /// Returns the range of items indices currently visible in the viewport.
