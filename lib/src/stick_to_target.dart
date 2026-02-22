@@ -172,14 +172,41 @@ class _StickToTargetState extends State<StickToTarget> {
     // Render object correction only applies to the simple stick-to-bottom
     // case. When a specific item target is set, the item's top pixel
     // naturally stays put as it grows — no correction needed.
-    final shouldStickToTarget = _isStuck && widget.target == null;
+    // Also suppressed during user interaction (expand-in-place).
+    final shouldStickToBottom =
+        _isStuck && widget.target == null && !_userIsInteracting;
     widget.listController.stickTarget =
-        shouldStickToTarget ? const StickTarget.bottom() : null;
+        shouldStickToBottom ? const StickTarget.bottom() : null;
+  }
+
+  void _onInteractionEnd() {
+    // Don't re-sync immediately — expansion animations may still be running.
+    // Keep corrections suppressed for a short window, then re-evaluate.
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      _userIsInteracting = false;
+      if (!widget.scrollController.hasClients) {
+        _syncStickTarget();
+        return;
+      }
+      final pos = widget.scrollController.position;
+      if (_isStuck && pos.extentAfter > widget.threshold) {
+        // Interaction moved us away from the bottom (e.g. expand).
+        _setStuck(false);
+      } else {
+        _syncStickTarget();
+      }
+    });
   }
 
   /// Called when the list content changes (items added, extents changed).
   void _onContentChanged() {
     if (!_isStuck) return;
+    // Don't fight user interaction (e.g. expand-in-place).
+    // _userIsInteracting stays true for 500ms after pointer up to cover
+    // expansion animations. Target-based jumping is NOT suppressed —
+    // only the bottom-jump path.
+    if (_userIsInteracting && widget.target == null) return;
     _scheduleJump();
   }
 
@@ -269,11 +296,19 @@ class _StickToTargetState extends State<StickToTarget> {
       onPointerDown: (_) {
         _userIsInteracting = true;
         _requireUserScrollToReStick = false;
+        // Suspend render-object correction while user is interacting.
+        // Allows expand-in-place: tapping to expand an item won't fight
+        // stick-to-bottom corrections.
+        widget.listController.stickTarget = null;
       },
+      onPointerUp: (_) => _onInteractionEnd(),
+      onPointerCancel: (_) => _onInteractionEnd(),
       onPointerPanZoomStart: (_) {
         _userIsInteracting = true;
         _requireUserScrollToReStick = false;
+        widget.listController.stickTarget = null;
       },
+      onPointerPanZoomEnd: (_) => _onInteractionEnd(),
       behavior: HitTestBehavior.translucent,
       child: NotificationListener<ScrollNotification>(
         onNotification: _onScrollNotification,
