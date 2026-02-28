@@ -177,16 +177,16 @@ class _StickToTargetState extends State<StickToTarget> {
 
   /// Tells the render object what to correct for during layout.
   ///
-  /// Only the [StickTarget.bottom] case gets a render-object correction
-  /// (zero lag). Item-based targets don't need correction — the item's top
-  /// stays put naturally as it grows.
+  /// Both bottom and item-based targets get render-object corrections when
+  /// anchored at the end. Without this, item-based targets that are clamped
+  /// to maxScrollExtent (effectively at the bottom) would lag by one frame
+  /// on every content growth.
   void _syncRenderObjectTarget() {
     final shouldCorrect = _isStuck &&
         widget.target != null &&
-        widget.target!.isBottom &&
         !_userIsInteracting;
     widget.listController.stickTarget =
-        shouldCorrect ? const StickTarget.bottom() : null;
+        shouldCorrect ? widget.target : null;
   }
 
   // ---------------------------------------------------------------------------

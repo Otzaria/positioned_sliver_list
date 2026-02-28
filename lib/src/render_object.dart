@@ -11,6 +11,7 @@ import "extent_manager.dart";
 import "layout_budget.dart";
 import "layout_pass.dart";
 import "sliver_extensions.dart";
+import "stick_target.dart";
 import "super_sliver_list.dart";
 
 final _log = Logger("SuperSliverList");
@@ -110,8 +111,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       return;
     }
     _initialScrollPosition = value;
-    _didResolveInitialScrollPosition =
-        value == InitialScrollPosition.start ? true : false;
+    _didResolveInitialScrollPosition = value == InitialScrollPosition.start;
     markNeedsLayout();
   }
 
@@ -987,14 +987,76 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     if (anchoredAtEnd &&
         (crossAxisResizing ||
             layoutState.didAddInitialChild ||
-            (_extentManager.stickTarget?.isBottom ?? false)) &&
+            _extentManager.stickTarget != null) &&
         _totalExtent() != initialExtent) {
+      final target = _extentManager.stickTarget;
+      final delta = _totalExtent() - initialExtent;
+
+      if (target == null || target.isBottom) {
+        // Bottom target (or cross-axis / initial-child cases): pin the
+        // trailing edge by correcting for the full extent change.
+        scrollCorrection += delta;
+      } else {
+        // Item target: pin trailing edge only while the target's desired
+        // scroll offset would be clamped to maxScrollExtent (i.e. the item
+        // can't yet be placed at its alignment position because there isn't
+        // enough content above it).  Once the target is reachable, correct
+        // just enough to reach it, then stop — the item's top stays put
+        // naturally as it grows.
+        final desiredSliverOffset = _desiredSliverOffsetForTarget(target);
+        final currentSliverOffset = constraints.scrollOffset + scrollCorrection;
+        final newMaxSliverOffset =
+            _totalExtent() - constraints.remainingPaintExtent;
+
+        if (desiredSliverOffset >=
+            newMaxSliverOffset - precisionErrorTolerance) {
+          // Still clamped: full trailing-edge correction.
+          scrollCorrection += delta;
+        } else {
+          // Target is reachable: correct only to the desired position.
+          final needed = desiredSliverOffset - currentSliverOffset;
+          if (needed > precisionErrorTolerance) {
+            scrollCorrection += needed;
+          }
+        }
+      }
+
       if (_log.isLoggable(Level.FINE)) {
         _log.fine(
           "Adjusting correction for extent change by ${_totalExtent() - initialExtent}",
         );
       }
-      scrollCorrection += _totalExtent() - initialExtent;
+    }
+
+    // Fallback: ensure content doesn't overflow past the visible area when
+    // anchoredAtEnd is false.  This covers the transition from content fitting
+    // inside the viewport to overflowing it — viewportIsScrolled is false
+    // (scrollOffset == 0) so anchoredAtEnd doesn't fire, but we still need a
+    // correction to keep the bottom visible.
+    //
+    // For item targets the correction is capped at the desired item position
+    // so we don't overshoot past it to the trailing edge.
+    if (_extentManager.stickTarget != null) {
+      final target = _extentManager.stickTarget!;
+      final currentOffset = constraints.scrollOffset + scrollCorrection;
+      final visibleEnd = currentOffset + constraints.remainingPaintExtent;
+      final overshoot = _totalExtent() - visibleEnd;
+
+      if (overshoot > precisionErrorTolerance) {
+        if (target.isBottom) {
+          scrollCorrection += overshoot;
+        } else {
+          // Item target: only correct the actual overflow, capped so we
+          // never scroll past the desired item position.
+          final desiredSliverOffset = _desiredSliverOffsetForTarget(target);
+          final maxCorrection =
+              math.max(0.0, desiredSliverOffset - currentOffset);
+          final cappedCorrection = math.min(overshoot, maxCorrection);
+          if (cappedCorrection > precisionErrorTolerance) {
+            scrollCorrection += cappedCorrection;
+          }
+        }
+      }
     }
 
     if (scrollCorrection.abs() > precisionErrorTolerance) {
@@ -1171,6 +1233,22 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
 
   double _totalExtent() {
     return _extentManager.totalExtent;
+  }
+
+  /// Approximates the sliver-local scroll offset that would place [target]'s
+  /// reveal rect at the requested viewport alignment.
+  ///
+  /// This is an inexpensive approximation of what [getOffsetToReveal] computes
+  /// (which requires a full viewport traversal and can't safely run mid-layout).
+  /// It's accurate for the common single-sliver case and close enough for
+  /// multi-sliver viewports to drive the clamped-vs-reachable decision.
+  double _desiredSliverOffsetForTarget(StickTarget target) {
+    final itemOffset = _extentManager.offsetForIndex(target.index);
+    final rectTop = target.rect?.top ?? 0;
+    final rectHeight = target.rect?.height ?? 0;
+    return itemOffset +
+        rectTop -
+        (constraints.viewportMainAxisExtent - rectHeight) * target.alignment;
   }
 
   @override
