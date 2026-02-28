@@ -80,7 +80,7 @@ class _KeepAliveWidgetState extends State<_KeepAliveWidget>
   bool get wantKeepAlive => widget.wantKeepAlive;
 }
 
-void main() async {
+void main() {
   initTestLogging();
   setUp(() {
     SuperSliverList.layoutBudget = _TestLayoutBudget();

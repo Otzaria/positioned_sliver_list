@@ -189,7 +189,7 @@ void main() {
       expect(extentList.hasDirtyItems, isTrue);
     });
   });
-  test("addItem", () async {
+  test("addItem", () {
     final extentList = ExtentList();
     extentList.resize(4, (_) => 100.0);
     for (int i = 0; i < 4; ++i) {
@@ -216,7 +216,7 @@ void main() {
 
     expect(extentList.length, equals(7));
   });
-  test("removeItem", () async {
+  test("removeItem", () {
     final extentList = ExtentList();
     extentList.resize(4, (_) => 100.0);
     for (int i = 0; i < 3; ++i) {
