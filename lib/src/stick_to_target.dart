@@ -1,5 +1,6 @@
 import "dart:async";
 
+import "package:flutter/gestures.dart" show PointerScrollEvent;
 import "package:flutter/widgets.dart";
 
 import "stick_target.dart";
@@ -78,6 +79,7 @@ class StickToTarget extends StatefulWidget {
 class _StickToTargetState extends State<StickToTarget> {
   bool _isStuck = false;
   bool _userIsInteracting = false;
+  bool _mouseWheelInteracting = false;
   bool _pendingJump = false;
 
   /// When true, re-sticking is suppressed until the user actively touches
@@ -187,11 +189,9 @@ class _StickToTargetState extends State<StickToTarget> {
   /// to maxScrollExtent (effectively at the bottom) would lag by one frame
   /// on every content growth.
   void _syncRenderObjectTarget() {
-    final shouldCorrect = _isStuck &&
-        widget.target != null &&
-        !_userIsInteracting;
-    widget.listController.stickTarget =
-        shouldCorrect ? widget.target : null;
+    final shouldCorrect =
+        _isStuck && widget.target != null && !_userIsInteracting;
+    widget.listController.stickTarget = shouldCorrect ? widget.target : null;
   }
 
   // ---------------------------------------------------------------------------
@@ -199,6 +199,7 @@ class _StickToTargetState extends State<StickToTarget> {
   // ---------------------------------------------------------------------------
 
   void _onInteractionStart() {
+    _mouseWheelInteracting = false; // Touch/pan overrides mouse wheel.
     _userIsInteracting = true;
     _requireUserScrollToReStick = false;
     _interactionTimer?.cancel();
@@ -230,7 +231,9 @@ class _StickToTargetState extends State<StickToTarget> {
   void _onContentChanged() {
     if (!_isStuck) return;
     if (widget.target == null) return; // Disabled.
-    if (_userIsInteracting && widget.target!.isBottom) return; // Expand-in-place.
+    if (_userIsInteracting && widget.target!.isBottom) {
+      return; // Expand-in-place.
+    }
     _scheduleJump();
   }
 
@@ -311,6 +314,12 @@ class _StickToTargetState extends State<StickToTarget> {
 
     if (notification is ScrollEndNotification) {
       _userIsInteracting = false;
+      if (_mouseWheelInteracting) {
+        // Mouse wheel has no pointer-up, so re-sync here instead of via
+        // _onInteractionEnd's timer (which exists for touch expand-in-place).
+        _mouseWheelInteracting = false;
+        _syncRenderObjectTarget();
+      }
     }
 
     return false;
@@ -324,6 +333,17 @@ class _StickToTargetState extends State<StickToTarget> {
       onPointerCancel: (_) => _onInteractionEnd(),
       onPointerPanZoomStart: (_) => _onInteractionStart(),
       onPointerPanZoomEnd: (_) => _onInteractionEnd(),
+      onPointerSignal: (event) {
+        if (event is PointerScrollEvent) {
+          // Mouse wheel scrolling — mark as interacting so the scroll
+          // notification handler can unstick if the user wheels away.
+          _mouseWheelInteracting = true;
+          _userIsInteracting = true;
+          _requireUserScrollToReStick = false;
+          _interactionTimer?.cancel();
+          widget.listController.stickTarget = null;
+        }
+      },
       behavior: HitTestBehavior.translucent,
       child: NotificationListener<ScrollNotification>(
         onNotification: _onScrollNotification,
