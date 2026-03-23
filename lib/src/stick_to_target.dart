@@ -141,14 +141,20 @@ class _StickToTargetState extends State<StickToTarget> {
     // Both old and new are non-null — target type changed.
     if (!oldTarget.isBottom && newTarget.isBottom) {
       // Streaming ended but conversation is still running: transition from
-      // item-pinning back to bottom-sticking immediately.
+      // item-pinning back to bottom-sticking.
+      // Only re-stick if the user is actually at the bottom. If they scrolled
+      // away during item-pinning, respect that and stay unstuck.
       _requireUserScrollToReStick = false;
       if (!_isStuck) {
-        _setStuck(true);
+        if (_isAtBottom) {
+          _setStuck(true);
+        }
       } else {
         _syncRenderObjectTarget();
       }
-      _scheduleJump();
+      if (_isStuck) {
+        _scheduleJump();
+      }
       return;
     }
 
