@@ -16,6 +16,12 @@ import "super_sliver_list.dart";
 
 final _log = Logger("SuperSliverList");
 
+/// Maximum number of scroll-offset corrections allowed in a single layout pass
+/// before we give up and defer to the next frame. Flutter's [RenderViewport]
+/// allows at most 10 layout cycles; exceeding that throws. We cap at 7 to
+/// leave headroom for other slivers that may also need corrections.
+const _kMaxCorrectionCount = 7;
+
 /// When providing child scroll offset for a child that is not currently visible
 /// the list will estimate offset for the child and then will attempt to correct
 /// the correct the scroll offset during layout;
@@ -1060,12 +1066,19 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     }
 
     if (scrollCorrection.abs() > precisionErrorTolerance) {
-      _log.fine(() => "Scroll offset correction: ${scrollCorrection.format()} "
-          "(reason: accumulated while laying out cache area)");
-      ++layoutPass.correctionCount;
-      geometry = SliverGeometry(scrollOffsetCorrection: scrollCorrection);
-      childManager.didFinishLayout();
-      return;
+      if (layoutPass.correctionCount >= _kMaxCorrectionCount) {
+        _log.fine(() => "Dropping accumulated scroll correction "
+            "${scrollCorrection.format()} — reached correction limit "
+            "(${layoutPass.correctionCount}). Will settle next frame.");
+        _markNeedsLayoutDelayed(layoutPass);
+      } else {
+        _log.fine(() => "Scroll offset correction: ${scrollCorrection.format()} "
+            "(reason: accumulated while laying out cache area)");
+        ++layoutPass.correctionCount;
+        geometry = SliverGeometry(scrollOffsetCorrection: scrollCorrection);
+        childManager.didFinishLayout();
+        return;
+      }
     }
 
     var correction = _calculatePendingLayout(
@@ -1081,13 +1094,20 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     }
 
     if (correction.abs() > precisionErrorTolerance) {
-      ++layoutPass.correctionCount;
-      _shiftLayoutOffsets(firstChild, correction);
-      _log.fine(() => "Scroll offset correction: ${correction.format()} "
-          "(reason: layout correction of invisible items or kept alive children)");
-      geometry = SliverGeometry(scrollOffsetCorrection: correction);
-      childManager.didFinishLayout();
-      return;
+      if (layoutPass.correctionCount >= _kMaxCorrectionCount) {
+        _log.fine(() => "Dropping invisible/kept-alive correction "
+            "${correction.format()} — reached correction limit "
+            "(${layoutPass.correctionCount}). Will settle next frame.");
+        _markNeedsLayoutDelayed(layoutPass);
+      } else {
+        ++layoutPass.correctionCount;
+        _shiftLayoutOffsets(firstChild, correction);
+        _log.fine(() => "Scroll offset correction: ${correction.format()} "
+            "(reason: layout correction of invisible items or kept alive children)");
+        geometry = SliverGeometry(scrollOffsetCorrection: correction);
+        childManager.didFinishLayout();
+        return;
+      }
     }
 
     final endScrollOffset = _totalExtent();
