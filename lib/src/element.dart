@@ -69,10 +69,26 @@ class SuperSliverMultiBoxAdaptorElement extends SliverMultiBoxAdaptorElement
   }
 
   @override
+  void activate() {
+    super.activate();
+    final currentWidget = widget as SuperSliverList;
+    _currentController = currentWidget.listController;
+    _currentController?.setDelegate(_extentManager);
+  }
+
+  @override
   void deactivate() {
     super.deactivate();
     _currentController?.unsetDelegate(_extentManager);
     _currentController = null;
+  }
+
+  @override
+  void unmount() {
+    _currentController?.unsetDelegate(_extentManager);
+    _currentController = null;
+    _extentManager.dispose();
+    super.unmount();
   }
 
   @override
