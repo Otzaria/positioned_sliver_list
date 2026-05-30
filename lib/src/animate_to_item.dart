@@ -49,9 +49,8 @@ class AnimateToItem {
         cancel();
       }
     });
-    final animation = CurvedAnimation(
-      parent: controller,
-      curve: curve(estimatedDistance),
+    final animation = controller.drive(
+      CurveTween(curve: curve(estimatedDistance)),
     );
     animation.addListener(() {
       final value = animation.value;
