@@ -90,11 +90,27 @@ typedef ExtentController = ListController;
 ///  }
 ///}
 ///```
+class _ProxyNotifier extends ChangeNotifier {
+  void notify() => notifyListeners();
+}
+
 class ListController extends ChangeNotifier {
   ListController({
     this.onAttached,
     this.onDetached,
   });
+
+  final _extentsChangedNotifier = _ProxyNotifier();
+
+  /// Notifies only when item extents or the item count change.
+  ///
+  /// Unlike listening to the [ListController] itself - which also fires on
+  /// pure visible-range changes, i.e. on every scroll frame - this channel
+  /// stays quiet while the user merely scrolls through already-measured
+  /// content. Prefer it for listeners that only care about content geometry.
+  Listenable get extentsChangedListenable => _extentsChangedNotifier;
+
+  void _notifyExtentsChanged() => _extentsChangedNotifier.notify();
 
   StickTarget? _stickTarget;
 
@@ -303,6 +319,7 @@ class ListController extends ChangeNotifier {
     if (_delegate != null) {
       unsetDelegate(_delegate!);
     }
+    _extentsChangedNotifier.dispose();
     super.dispose();
   }
 
@@ -316,9 +333,11 @@ class ListController extends ChangeNotifier {
       onDetached?.call();
     }
     _delegate?.removeListener(notifyListeners);
+    _delegate?.extentsChangedListenable.removeListener(_notifyExtentsChanged);
     _delegate = delegate;
     _delegate?.stickTarget = _stickTarget;
     _delegate?.addListener(notifyListeners);
+    _delegate?.extentsChangedListenable.addListener(_notifyExtentsChanged);
     if (_delegate != null) {
       onAttached?.call();
     }
@@ -327,6 +346,8 @@ class ListController extends ChangeNotifier {
   void unsetDelegate(ExtentManager delegate) {
     if (_delegate == delegate) {
       _delegate?.removeListener(notifyListeners);
+      _delegate?.extentsChangedListenable
+          .removeListener(_notifyExtentsChanged);
       _delegate = null;
       onDetached?.call();
     }

@@ -2,6 +2,7 @@ import "package:collection/collection.dart";
 import "package:flutter/foundation.dart";
 
 import "fenwick_tree.dart";
+import "perf_flags.dart";
 
 class ResizableFloat64List {
   static const _minCapacity = 16;
@@ -62,8 +63,13 @@ class ResizableFloat64List {
   }
 
   void _maybeTrim() {
+    // With hysteresis, only trim when the list is at most quarter-full; the
+    // loop still halves, so the trimmed capacity keeps ~2x headroom. Without
+    // it, a remove+insert cycle at a power-of-two boundary causes two full
+    // O(n) copies (trim to exactly `length`, then double again).
+    final divisor = SuperSliverListPerfFlags.trimHysteresis ? 4 : 2;
     var newCapacity = _capacity;
-    while (newCapacity > _minCapacity && newCapacity ~/ 2 >= _length) {
+    while (newCapacity > _minCapacity && newCapacity ~/ divisor >= _length) {
       newCapacity ~/= 2;
     }
     _reallocate(newCapacity);
@@ -137,8 +143,30 @@ class ExtentList {
       }
       _dirty[index] = false;
 
-      _cleanRangeStart = index;
-      _cleanRangeEnd = index;
+      if (SuperSliverListPerfFlags.incrementalCleanRange &&
+          _cleanRangeStart != null) {
+        // Extend the tracked clean range instead of resetting it to a single
+        // index (which would force the lazy getters to re-walk the whole
+        // clean span). All items within [_cleanRangeStart, _cleanRangeEnd]
+        // are clean, so extension keeps the invariant. When the index is
+        // disjoint from the tracked range the getters produce the same
+        // maximal clean interval either way, so re-anchoring is safe.
+        final start = _cleanRangeStart!;
+        final end = _cleanRangeEnd!;
+        if (index >= start && index <= end) {
+          // Already inside the tracked clean range.
+        } else if (index == start - 1) {
+          _cleanRangeStart = index;
+        } else if (index == end + 1) {
+          _cleanRangeEnd = index;
+        } else {
+          _cleanRangeStart = index;
+          _cleanRangeEnd = index;
+        }
+      } else {
+        _cleanRangeStart = index;
+        _cleanRangeEnd = index;
+      }
     }
 
     final delta = extent - _extents[index];
@@ -205,38 +233,115 @@ class ExtentList {
   void markDirty(int index) {
     assert(_extents.length == _dirty.length);
     assert(index >= 0 && index < _extents.length);
-    // This could be optimized to preserve part of clean range.
     if (!_dirty[index]) {
       _dirty[index] = true;
       ++_dirtyCount;
-      _cleanRangeStart = null;
-      _cleanRangeEnd = null;
+      if (SuperSliverListPerfFlags.preserveCleanRangeOnMarkDirty &&
+          _cleanRangeStart != null) {
+        final start = _cleanRangeStart!;
+        final end = _cleanRangeEnd!;
+        if (index < start || index > end) {
+          // Outside the tracked range: lazy getter expansion stops at the
+          // newly dirty item, so the range stays valid as-is.
+        } else if (start == end) {
+          _cleanRangeStart = null;
+          _cleanRangeEnd = null;
+        } else if (index - start >= end - index) {
+          // Keep the larger (leading) side.
+          _cleanRangeEnd = index - 1;
+        } else {
+          _cleanRangeStart = index + 1;
+        }
+      } else {
+        _cleanRangeStart = null;
+        _cleanRangeEnd = null;
+      }
     }
   }
 
   void removeAt(int index) {
     assert(index >= 0 && index < _extents.length);
+    final wasLast = index == _extents.length - 1;
     _totalExtent -= _extents[index];
     _extents.removeAt(index);
     if (_dirty[index]) {
       --_dirtyCount;
     }
     _dirty.removeAt(index);
-    _cleanRangeStart = null;
-    _cleanRangeEnd = null;
-    _fenwickTree = null;
+    if (SuperSliverListPerfFlags.preserveCleanRangeOnStructuralChange &&
+        _cleanRangeStart != null) {
+      final start = _cleanRangeStart!;
+      final end = _cleanRangeEnd!;
+      if (index > end) {
+        // Removed after the range: indices unaffected.
+      } else if (index < start) {
+        // Removed before the range: shift down.
+        _cleanRangeStart = start - 1;
+        _cleanRangeEnd = end - 1;
+      } else if (start == end) {
+        _cleanRangeStart = null;
+        _cleanRangeEnd = null;
+      } else {
+        // Removed a clean item inside the range: remaining items are still
+        // clean and contiguous after the shift.
+        _cleanRangeEnd = end - 1;
+      }
+    } else {
+      _cleanRangeStart = null;
+      _cleanRangeEnd = null;
+    }
+    if (SuperSliverListPerfFlags.incrementalFenwick &&
+        wasLast &&
+        _fenwickTree != null) {
+      // Removing the last element only truncates the tree (O(1)).
+      _fenwickTree!.truncate(index);
+    } else {
+      _fenwickTree = null;
+    }
   }
 
   void insertAt(int index, double Function(int index) defaultExtent) {
     assert(index >= 0 && index <= _extents.length);
+    final isAppend = index == _extents.length;
     final extent = defaultExtent(index);
     _extents.insert(index, extent);
     _totalExtent += extent;
     _dirty.insert(index, true);
     ++_dirtyCount;
-    _cleanRangeStart = null;
-    _cleanRangeEnd = null;
-    _fenwickTree = null;
+    if (SuperSliverListPerfFlags.preserveCleanRangeOnStructuralChange &&
+        _cleanRangeStart != null) {
+      final start = _cleanRangeStart!;
+      final end = _cleanRangeEnd!;
+      if (index > end) {
+        // Inserted after the range (including pure append): the new item is
+        // dirty and beyond the range, indices unaffected.
+      } else if (index <= start) {
+        // Inserted before the range: shift up.
+        _cleanRangeStart = start + 1;
+        _cleanRangeEnd = end + 1;
+      } else {
+        // Inserted (dirty) inside the range: keep the larger side.
+        final leftSize = index - start; // clean items start .. index-1
+        final rightSize = end - index + 1; // old index .. end, shifted +1
+        if (leftSize >= rightSize) {
+          _cleanRangeEnd = index - 1;
+        } else {
+          _cleanRangeStart = index + 1;
+          _cleanRangeEnd = end + 1;
+        }
+      }
+    } else {
+      _cleanRangeStart = null;
+      _cleanRangeEnd = null;
+    }
+    if (SuperSliverListPerfFlags.incrementalFenwick &&
+        isAppend &&
+        _fenwickTree != null) {
+      // Appending at the end keeps the tree valid (O(log n)).
+      _fenwickTree!.append(extent);
+    } else {
+      _fenwickTree = null;
+    }
   }
 
   void resize(int newSize, double Function(int? index) defaultExtent) {
@@ -292,7 +397,27 @@ class ExtentList {
     if (_cleanRangeEnd != null && _cleanRangeEnd! >= newSize) {
       _cleanRangeEnd = newSize - 1;
     }
-    _fenwickTree = null;
+    if (SuperSliverListPerfFlags.incrementalFenwick && _fenwickTree != null) {
+      final tree = _fenwickTree!;
+      if (newSize < prevSize) {
+        // Shrinking only truncates the tree (O(1)).
+        tree.truncate(newSize);
+      } else if (newSize > prevSize) {
+        final added = newSize - prevSize;
+        // Appending k items costs O(k log n) while a full rebuild costs O(n).
+        // Append incrementally when it is cheaper, otherwise defer to the
+        // rebuild that happens on the next query.
+        if (added * (newSize.bitLength + 1) < newSize) {
+          for (var i = prevSize; i < newSize; ++i) {
+            tree.append(_extents[i]);
+          }
+        } else {
+          _fenwickTree = null;
+        }
+      }
+    } else {
+      _fenwickTree = null;
+    }
   }
 
   FenwickTree _getOrBuildFenwickTree() {

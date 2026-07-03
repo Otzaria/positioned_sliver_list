@@ -1,3 +1,4 @@
+import "dart:math" as math;
 import "dart:typed_data";
 
 import "package:super_sliver_list/src/fenwick_tree.dart";
@@ -75,6 +76,58 @@ void main() {
     for (var i = 0; i < size; ++i) {
       expect(tree.query(i), total);
       total += i == 0 ? 100 : i;
+    }
+  });
+  test("FenwickTree append matches rebuild", () {
+    final random = math.Random(42);
+    final values = <double>[];
+    final tree = FenwickTree(size: 0);
+    for (var i = 0; i < 1000; ++i) {
+      final value = random.nextInt(100).toDouble();
+      values.add(value);
+      tree.append(value);
+      expect(tree.size, values.length);
+    }
+    final reference = FenwickTree.fromList(list: Float64List.fromList(values));
+    double total = 0;
+    for (var i = 0; i <= values.length; ++i) {
+      expect(tree.query(i), reference.query(i));
+      expect(tree.query(i), total);
+      if (i < values.length) {
+        total += values[i];
+      }
+    }
+    for (var offset = 0.0; offset < total; offset += 13.0) {
+      expect(tree.inverseQuery(offset), reference.inverseQuery(offset));
+    }
+  });
+  test("FenwickTree truncate, update and re-append", () {
+    final random = math.Random(7);
+    final values = List.generate(500, (_) => random.nextInt(100).toDouble());
+    final tree = FenwickTree.fromList(list: Float64List.fromList(values));
+
+    // Truncate, mutate an element, then grow back with new values.
+    tree.truncate(200);
+    values.length = 200;
+    tree.update(100, 5);
+    values[100] += 5;
+    for (var i = 0; i < 300; ++i) {
+      final value = random.nextInt(100).toDouble();
+      values.add(value);
+      tree.append(value);
+    }
+
+    final reference = FenwickTree.fromList(list: Float64List.fromList(values));
+    double total = 0;
+    for (var i = 0; i <= values.length; ++i) {
+      expect(tree.query(i), reference.query(i));
+      expect(tree.query(i), total);
+      if (i < values.length) {
+        total += values[i];
+      }
+    }
+    for (var offset = 0.0; offset < total; offset += 13.0) {
+      expect(tree.inverseQuery(offset), reference.inverseQuery(offset));
     }
   });
   test("large FenwickTree from list", () {

@@ -39,8 +39,28 @@ class ItemRange {
   String toString() => "ItemRange($first, $last)";
 }
 
+class _ExtentsChangedNotifier extends ChangeNotifier {
+  void notify() => notifyListeners();
+}
+
 class ExtentManager with ChangeNotifier {
   ExtentManager({required this.delegate});
+
+  final _extentsChangedNotifier = _ExtentsChangedNotifier();
+
+  /// Notifies only when item extents or item count change - unlike the
+  /// [ExtentManager] itself, which also notifies on pure visible-range
+  /// changes (i.e. on every scroll frame). Listeners that only care about
+  /// content geometry (such as [StickToTarget]) should prefer this channel.
+  Listenable get extentsChangedListenable => _extentsChangedNotifier;
+
+  bool _extentsModified = false;
+
+  @override
+  void dispose() {
+    _extentsChangedNotifier.dispose();
+    super.dispose();
+  }
 
   double _beforeCorrection = 0.0;
   double _afterCorrection = 0.0;
@@ -79,7 +99,9 @@ class ExtentManager with ChangeNotifier {
     final extentChanged = (oldExtent - extent).abs() > precisionErrorTolerance;
     bool wasDirty = false;
 
-    if (!extentChanged && !isEstimation && !_isModified) {
+    if (!extentChanged &&
+        !isEstimation &&
+        (!_isModified || !_extentsModified)) {
       wasDirty = _extentList.isDirty(index);
     }
 
@@ -90,12 +112,9 @@ class ExtentManager with ChangeNotifier {
 
     _extentList.setExtent(index, extent, isEstimation: isEstimation);
 
-    if (!_isModified) {
-      if (extentChanged) {
-        _isModified = true;
-      } else if (!isEstimation && wasDirty) {
-        _isModified = true;
-      }
+    if (extentChanged || (!isEstimation && wasDirty)) {
+      _isModified = true;
+      _extentsModified = true;
     }
   }
 
@@ -103,6 +122,7 @@ class ExtentManager with ChangeNotifier {
     _afterCorrection = 0.0;
     _beforeCorrection = 0.0;
     _isModified = true;
+    _extentsModified = true;
     _extentList.markAllDirty();
   }
 
@@ -123,6 +143,7 @@ class ExtentManager with ChangeNotifier {
       return;
     }
     _isModified = true;
+    _extentsModified = true;
     _extentList.resize(newSize, delegate.estimateExtentForItem);
   }
 
@@ -151,6 +172,7 @@ class ExtentManager with ChangeNotifier {
     assert(!_layoutInProgress);
     _layoutInProgress = true;
     _isModified = false;
+    _extentsModified = false;
     _didReportVisibleChildren = false;
     _didReportUnobstructedVisibleChildren = false;
     _beforeCorrection = 0.0;
@@ -171,6 +193,9 @@ class ExtentManager with ChangeNotifier {
       _layoutInProgress = false;
       if (_isModified) {
         notifyListeners();
+      }
+      if (_extentsModified) {
+        _extentsChangedNotifier.notify();
       }
     }
   }

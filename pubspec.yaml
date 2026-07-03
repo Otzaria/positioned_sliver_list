@@ -20,6 +20,7 @@ dev_dependencies:
   test: ^1.24.9
   sliver_tools: ^0.2.12
   test_api:
+  vm_service: ^15.2.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

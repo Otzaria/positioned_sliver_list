@@ -1,4 +1,5 @@
 import "package:super_sliver_list/src/extent_list.dart";
+import "package:super_sliver_list/src/perf_flags.dart";
 import "package:test/test.dart";
 
 void main() {
@@ -166,10 +167,113 @@ void main() {
       expect(extentList.hasDirtyItems, isFalse);
 
       extentList.markDirty(2);
-      // whole clean range was reset.
-      expect(extentList.cleanRangeStart, isNull);
-      expect(extentList.cleanRangeEnd, isNull);
+      // The larger (leading) side of the clean range is kept.
+      expect(extentList.cleanRangeStart, equals(0));
+      expect(extentList.cleanRangeEnd, equals(1));
       expect(extentList.hasDirtyItems, isTrue);
+    });
+    test("cleanRange after markDirty (legacy reset behavior)", () {
+      final saved = SuperSliverListPerfFlags.preserveCleanRangeOnMarkDirty;
+      SuperSliverListPerfFlags.preserveCleanRangeOnMarkDirty = false;
+      try {
+        final extentList = ExtentList();
+
+        extentList.resize(4, (_) => 100.0);
+        for (int i = 0; i < 4; ++i) {
+          extentList.setExtent(i, 50);
+        }
+        expect(extentList.cleanRangeStart, equals(0));
+        expect(extentList.cleanRangeEnd, equals(3));
+        expect(extentList.hasDirtyItems, isFalse);
+
+        extentList.markDirty(2);
+        // whole clean range was reset.
+        expect(extentList.cleanRangeStart, isNull);
+        expect(extentList.cleanRangeEnd, isNull);
+        expect(extentList.hasDirtyItems, isTrue);
+      } finally {
+        SuperSliverListPerfFlags.preserveCleanRangeOnMarkDirty = saved;
+      }
+    });
+    test("cleanRange preserved across structural changes", () {
+      final extentList = ExtentList();
+      extentList.resize(10, (_) => 100.0);
+      for (int i = 0; i < 10; ++i) {
+        extentList.setExtent(i, 50);
+      }
+      expect(extentList.cleanRangeStart, equals(0));
+      expect(extentList.cleanRangeEnd, equals(9));
+
+      // Pure append: range untouched (new item is dirty, beyond the range).
+      extentList.insertAt(10, (_) => 100.0);
+      expect(extentList.cleanRangeStart, equals(0));
+      expect(extentList.cleanRangeEnd, equals(9));
+
+      // Tail removal of the dirty item: range untouched.
+      extentList.removeAt(10);
+      expect(extentList.cleanRangeStart, equals(0));
+      expect(extentList.cleanRangeEnd, equals(9));
+
+      // Removal of the clean tail item: range shrinks by one.
+      extentList.removeAt(9);
+      expect(extentList.cleanRangeStart, equals(0));
+      expect(extentList.cleanRangeEnd, equals(8));
+
+      // Insert before the range start shifts it up...
+      extentList.insertAt(0, (_) => 100.0);
+      expect(extentList.cleanRangeStart, equals(1));
+      expect(extentList.cleanRangeEnd, equals(9));
+
+      // ...and removing it shifts back down.
+      extentList.removeAt(0);
+      expect(extentList.cleanRangeStart, equals(0));
+      expect(extentList.cleanRangeEnd, equals(8));
+
+      // Dirty insert inside the range keeps the larger side (leading here).
+      extentList.insertAt(6, (_) => 100.0);
+      expect(extentList.cleanRangeStart, equals(0));
+      expect(extentList.cleanRangeEnd, equals(5));
+
+      // Removal inside the range keeps it contiguous.
+      extentList.removeAt(2);
+      expect(extentList.cleanRangeStart, equals(0));
+      expect(extentList.cleanRangeEnd, equals(4));
+
+      // Invariant: everything within the reported range is clean.
+      for (var i = extentList.cleanRangeStart!;
+          i <= extentList.cleanRangeEnd!;
+          i++) {
+        expect(extentList.isDirty(i), isFalse);
+      }
+    });
+    test("cleanRange after markDirty in the middle keeps larger side", () {
+      final extentList = ExtentList();
+
+      extentList.resize(10, (_) => 100.0);
+      for (int i = 0; i < 10; ++i) {
+        extentList.setExtent(i, 50);
+      }
+      expect(extentList.cleanRangeStart, equals(0));
+      expect(extentList.cleanRangeEnd, equals(9));
+
+      // Dirty near the start: trailing side is kept.
+      extentList.markDirty(2);
+      expect(extentList.cleanRangeStart, equals(3));
+      expect(extentList.cleanRangeEnd, equals(9));
+
+      // Dirty at range boundary.
+      extentList.markDirty(9);
+      expect(extentList.cleanRangeStart, equals(3));
+      expect(extentList.cleanRangeEnd, equals(8));
+
+      // Single-item range collapses to null.
+      final single = ExtentList();
+      single.resize(1, (_) => 100.0);
+      single.setExtent(0, 50);
+      expect(single.cleanRangeStart, equals(0));
+      single.markDirty(0);
+      expect(single.cleanRangeStart, isNull);
+      expect(single.cleanRangeEnd, isNull);
     });
     test("cleanRange after markDirty is preserved", () {
       final extentList = ExtentList();
@@ -201,8 +305,10 @@ void main() {
     expect(extentList.totalExtent, 300);
     expect(extentList[2], 100);
     expect(extentList.isDirty(2), isTrue);
-    expect(extentList.cleanRangeStart, isNull);
-    expect(extentList.cleanRangeEnd, isNull);
+    // The dirty insert splits the clean range [0, 3]; the leading side is
+    // kept (ties prefer leading).
+    expect(extentList.cleanRangeStart, equals(0));
+    expect(extentList.cleanRangeEnd, equals(1));
 
     extentList.insertAt(0, (index) => 100);
     expect(extentList.totalExtent, 400);
@@ -229,8 +335,9 @@ void main() {
     expect(extentList.isDirty(1), isFalse);
     expect(extentList.isDirty(2), isTrue);
 
-    expect(extentList.cleanRangeStart, isNull);
-    expect(extentList.cleanRangeEnd, isNull);
+    // Removing the clean tail item of the range [0, 2] shrinks it.
+    expect(extentList.cleanRangeStart, equals(0));
+    expect(extentList.cleanRangeEnd, equals(1));
 
     extentList.removeAt(2);
     expect(extentList.totalExtent, 100);

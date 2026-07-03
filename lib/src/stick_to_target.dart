@@ -3,6 +3,7 @@ import "dart:async";
 import "package:flutter/gestures.dart" show PointerScrollEvent;
 import "package:flutter/widgets.dart";
 
+import "perf_flags.dart";
 import "stick_target.dart";
 import "super_sliver_list.dart";
 
@@ -77,6 +78,17 @@ class StickToTarget extends StatefulWidget {
 }
 
 class _StickToTargetState extends State<StickToTarget> {
+  /// Which notification channel this state subscribed to (captured once so
+  /// add/removeListener always target the same channel even if the flag is
+  /// flipped at runtime).
+  late final bool _useExtentsChannel =
+      SuperSliverListPerfFlags.extentsOnlyStickNotifications;
+
+  /// Content-change notifications: with the extents-only channel we are not
+  /// called on every scroll frame, only when content geometry changes.
+  Listenable _contentListenable(ListController controller) =>
+      _useExtentsChannel ? controller.extentsChangedListenable : controller;
+
   bool _isStuck = false;
   bool _userIsInteracting = false;
   bool _mouseWheelInteracting = false;
@@ -98,7 +110,7 @@ class _StickToTargetState extends State<StickToTarget> {
       _isStuck = true;
       _syncRenderObjectTarget();
     }
-    widget.listController.addListener(_onContentChanged);
+    _contentListenable(widget.listController).addListener(_onContentChanged);
   }
 
   @override
@@ -106,9 +118,10 @@ class _StickToTargetState extends State<StickToTarget> {
     super.didUpdateWidget(oldWidget);
 
     if (oldWidget.listController != widget.listController) {
-      oldWidget.listController.removeListener(_onContentChanged);
+      _contentListenable(oldWidget.listController)
+          .removeListener(_onContentChanged);
       oldWidget.listController.stickTarget = null;
-      widget.listController.addListener(_onContentChanged);
+      _contentListenable(widget.listController).addListener(_onContentChanged);
       _syncRenderObjectTarget();
     }
 
@@ -167,7 +180,8 @@ class _StickToTargetState extends State<StickToTarget> {
   @override
   void dispose() {
     _interactionTimer?.cancel();
-    widget.listController.removeListener(_onContentChanged);
+    _contentListenable(widget.listController)
+        .removeListener(_onContentChanged);
     widget.listController.stickTarget = null;
     super.dispose();
   }

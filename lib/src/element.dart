@@ -9,6 +9,17 @@ abstract class MeasuringRenderSliverBoxChildManager
     extends RenderSliverBoxChildManager {
   double measureExtentForItem(int index, SliverConstraints constraints);
 
+  /// Measures multiple items within a single build scope.
+  ///
+  /// [callback] receives a `measure` function that can be invoked repeatedly
+  /// to measure the extent of individual items. This amortizes the cost of
+  /// entering [BuildOwner.buildScope] across all measured items instead of
+  /// paying it once per item.
+  void measureExtentsBatch(
+    SliverConstraints constraints,
+    void Function(double Function(int index) measure) callback,
+  );
+
   ExtentManager get extentManager;
 }
 
@@ -94,6 +105,25 @@ class SuperSliverMultiBoxAdaptorElement extends SliverMultiBoxAdaptorElement
   @override
   double measureExtentForItem(int index, SliverConstraints constraints) {
     _createTemporaryChild(index);
+    return _measureAndRemoveTemporaryChild(constraints);
+  }
+
+  @override
+  void measureExtentsBatch(
+    SliverConstraints constraints,
+    void Function(double Function(int index) measure) callback,
+  ) {
+    // Single build scope for the entire batch; entering the build scope once
+    // per measured item is a significant part of the per-item cost.
+    owner!.buildScope(this, () {
+      callback((index) {
+        _createTemporaryChildInScope(index);
+        return _measureAndRemoveTemporaryChild(constraints);
+      });
+    });
+  }
+
+  double _measureAndRemoveTemporaryChild(SliverConstraints constraints) {
     final renderObject = _tempRenderObject! as RenderBox;
     renderObject.layout(constraints.asBoxConstraints(), parentUsesSize: true);
     final extent = constraints.axis == Axis.vertical
@@ -113,21 +143,25 @@ class SuperSliverMultiBoxAdaptorElement extends SliverMultiBoxAdaptorElement
   RenderObject? _tempRenderObject;
 
   void _createTemporaryChild(int index) {
+    owner!.buildScope(this, () {
+      _createTemporaryChildInScope(index);
+    });
+  }
+
+  void _createTemporaryChildInScope(int index) {
     assert(_tempElement == null);
     assert(_tempRenderObject == null);
     assert(_tempSlot == null);
-    owner!.buildScope(this, () {
-      final SliverMultiBoxAdaptorWidget adaptorWidget =
-          widget as SliverMultiBoxAdaptorWidget;
-      _tempSlot = index;
-      _tempElement = updateChild(
-        null,
-        adaptorWidget.delegate.build(this, index),
-        index,
-      );
-      assert(_tempRenderObject != null);
-      _tempSlot = null;
-    });
+    final SliverMultiBoxAdaptorWidget adaptorWidget =
+        widget as SliverMultiBoxAdaptorWidget;
+    _tempSlot = index;
+    _tempElement = updateChild(
+      null,
+      adaptorWidget.delegate.build(this, index),
+      index,
+    );
+    assert(_tempRenderObject != null);
+    _tempSlot = null;
   }
 
   @override

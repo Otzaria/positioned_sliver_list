@@ -10,6 +10,7 @@ import "element.dart";
 import "extent_manager.dart";
 import "layout_budget.dart";
 import "layout_pass.dart";
+import "perf_flags.dart";
 import "sliver_extensions.dart";
 import "stick_target.dart";
 import "super_sliver_list.dart";
@@ -123,6 +124,31 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
 
   bool _shouldPrecalculateExtents(LayoutPass pass) {
     final state = pass.getLayoutState(this);
+    if (SuperSliverListPerfFlags.cachedShouldPrecalculateExtents) {
+      // The result is cached per layout pass; skip the viewport walk and
+      // context allocation when it is already present. This method is called
+      // repeatedly per pass (also once per invisible sliver through
+      // _shouldSkipExtentPrecalculationForInvisibleList).
+      if (state.precalculateExtents == null) {
+        final viewport = getViewport()!;
+        final position = viewport.offset as ScrollPosition;
+        final context = ExtentPrecalculationContext(
+          viewportMainAxisExtent: position.hasViewportDimension
+              ? position.viewportDimension
+              : null,
+          contentTotalExtent: position.hasContentDimensions
+              ? position.maxScrollExtent - position.minScrollExtent
+              : null,
+          numberOfItems: _extentManager.numberOfItems,
+          numberOfItemsWithEstimatedExtent:
+              _extentManager.numberOfItemsWithEstimatedExtent,
+        );
+        state.precalculateExtents =
+            _extentPrecalculationPolicy?.shouldPrecalculateExtents(context) ??
+                false;
+      }
+      return state.precalculateExtents!;
+    }
     final viewport = getViewport()!;
     final position = viewport.offset as ScrollPosition;
     final context = ExtentPrecalculationContext(
@@ -189,9 +215,22 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     }
 
     final renderBox = child as RenderBox;
-    for (var c = firstChild; c != null; c = childAfter(c)) {
-      if (renderBox == c) {
+    if (SuperSliverListPerfFlags.fastChildScrollOffsetLookup) {
+      // O(1) membership check. Live children (the only ones the superclass
+      // can answer for) are attached to this sliver with keptAlive == false.
+      // Kept-alive children have keptAlive == true and _FakeRenderObject is
+      // excluded explicitly - both fall through to the estimation path below,
+      // matching the behavior of the linear scan.
+      if (child is! _FakeRenderObject &&
+          child.parent == this &&
+          !_parentDataOf(child).keptAlive) {
         return super.childScrollOffset(renderBox);
+      }
+    } else {
+      for (var c = firstChild; c != null; c = childAfter(c)) {
+        if (renderBox == c) {
+          return super.childScrollOffset(renderBox);
+        }
       }
     }
 
@@ -222,40 +261,70 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     // level parent of this sliver (viewport) and this sliver precedingScrollExtent.
     double getActualPrecedingScrollExtent() {
       final viewport = getViewport()!;
-      bool isParent(RenderObject object) {
-        var parent = this.parent;
-        while (parent != null && parent != viewport) {
-          if (parent == object) {
-            return true;
-          }
-          parent = parent.parent;
-        }
-        return false;
-      }
-
       double offset = 0;
       bool finished = false;
-      viewport.visitChildren((child) {
-        if (finished) {
-          return;
+      if (SuperSliverListPerfFlags.fastPrecedingScrollExtent) {
+        // Single upward walk (O(depth)) finds the direct viewport child that
+        // contains this sliver, instead of walking the ancestor chain once
+        // per preceding viewport child (O(children * depth)).
+        RenderObject topLevel = this;
+        var p = parent;
+        while (p != null && p != viewport) {
+          topLevel = p;
+          p = p.parent;
         }
-        if (child is! RenderSliver) {
-          assert(false, "Unexpected non-sliver child of viewport");
-          return;
+        viewport.visitChildren((child) {
+          if (finished) {
+            return;
+          }
+          if (child is! RenderSliver) {
+            assert(false, "Unexpected non-sliver child of viewport");
+            return;
+          }
+          if (child == topLevel) {
+            if (child != this) {
+              offset += constraints.precedingScrollExtent -
+                  child.constraints.precedingScrollExtent;
+            }
+            finished = true;
+            return;
+          }
+          offset += child.geometry!.scrollExtent;
+        });
+      } else {
+        bool isParent(RenderObject object) {
+          var parent = this.parent;
+          while (parent != null && parent != viewport) {
+            if (parent == object) {
+              return true;
+            }
+            parent = parent.parent;
+          }
+          return false;
         }
-        if (isParent(child)) {
-          final difference = constraints.precedingScrollExtent -
-              child.constraints.precedingScrollExtent;
-          offset += difference;
-          finished = true;
-          return;
-        }
-        if (child == this) {
-          finished = true;
-          return;
-        }
-        offset += child.geometry!.scrollExtent;
-      });
+
+        viewport.visitChildren((child) {
+          if (finished) {
+            return;
+          }
+          if (child is! RenderSliver) {
+            assert(false, "Unexpected non-sliver child of viewport");
+            return;
+          }
+          if (isParent(child)) {
+            final difference = constraints.precedingScrollExtent -
+                child.constraints.precedingScrollExtent;
+            offset += difference;
+            finished = true;
+            return;
+          }
+          if (child == this) {
+            finished = true;
+            return;
+          }
+          offset += child.geometry!.scrollExtent;
+        });
+      }
       assert(finished, "Viewport doesn't seem to contain current sliver?");
       return offset;
     }
@@ -381,6 +450,39 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     }
     double correction = 0.0;
     final firstChildIndex = firstChild != null ? _indexOf(firstChild!) : -1;
+    if (SuperSliverListPerfFlags.optimizedKeptAliveLayout) {
+      // Single traversal: kept-alive children are collected while being laid
+      // out, then their layout offsets are updated from the collected list
+      // instead of re-visiting every child (live + kept alive) a second
+      // time. The BoxConstraints conversion is also hoisted out of the
+      // per-child visitor.
+      final childConstraints = constraints.asBoxConstraints();
+      List<RenderBox>? keptAlive;
+      visitChildren((child_) {
+        final child = child_ as RenderBox;
+        final data = child.parentData! as SliverMultiBoxAdaptorParentData;
+        if (data.keptAlive) {
+          (keptAlive ??= <RenderBox>[]).add(child);
+          final index = _indexOf(child);
+          final prevExtent = _extentManager.getExtent(index);
+          child.layout(childConstraints, parentUsesSize: true);
+          final extentAfter = paintExtentOf(child);
+          _extentManager.setExtent(index, extentAfter);
+          if (index < firstChildIndex) {
+            correction += extentAfter - prevExtent;
+          }
+        }
+      });
+      // Update layout offsets after all extents have been updated.
+      final list = keptAlive;
+      if (list != null) {
+        for (final child in list) {
+          final data = child.parentData! as SliverMultiBoxAdaptorParentData;
+          data.layoutOffset = _extentManager.offsetForIndex(_indexOf(child));
+        }
+      }
+      return correction;
+    }
     // First step - layout all kept alive children.
     visitChildren((child_) {
       final child = child_ as RenderBox;
@@ -431,39 +533,92 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
 
     budget.beginLayout();
 
-    while (precalculateExtents &&
-        _extentManager.hasDirtyItems &&
-        budget.shouldLayoutNextItem()) {
-      var start = _extentManager.cleanRangeStart;
-      var end = _extentManager.cleanRangeEnd;
+    if (SuperSliverListPerfFlags.batchExtentPrecalculation) {
+      // Single layout callback and build scope wrapping the entire measuring
+      // loop; the per-item variant below pays for both once per item.
+      invokeLayoutCallback((_) {
+        childManager.measureExtentsBatch(constraints, (measure) {
+          while (precalculateExtents &&
+              _extentManager.hasDirtyItems &&
+              budget.shouldLayoutNextItem()) {
+            var start = _extentManager.cleanRangeStart;
+            var end = _extentManager.cleanRangeEnd;
 
-      if (start == null && end == null) {
-        start = childCount;
-        end = childCount;
-      } else {
-        start = start!;
-        end = end!;
-      }
+            if (start == null && end == null) {
+              start = childCount;
+              end = childCount;
+            } else {
+              start = start!;
+              end = end!;
+            }
 
-      // Only layout items before clean range if scroll correction is allowed.
-      // There is limited amount of scroll correction attempts during layout pass
-      // and if exceeded viewport layout will throw an exception.
-      if (start > 0 && allowScrollOffsetCorrection) {
-        final index = start - 1;
-        invokeLayoutCallback((_) {
-          final extent = childManager.measureExtentForItem(index, constraints);
-          final prevExtent = _extentManager.getExtent(index);
-          _extentManager.setExtent(index, extent);
-          correction += extent - prevExtent;
+            var didMeasure = false;
+
+            // Only layout items before clean range if scroll correction is allowed.
+            // There is limited amount of scroll correction attempts during layout pass
+            // and if exceeded viewport layout will throw an exception.
+            if (start > 0 && allowScrollOffsetCorrection) {
+              final index = start - 1;
+              final extent = measure(index);
+              final prevExtent = _extentManager.getExtent(index);
+              _extentManager.setExtent(index, extent);
+              correction += extent - prevExtent;
+              didMeasure = true;
+            }
+
+            if (end < childCount - 1) {
+              final index = end + 1;
+              final extent = measure(index);
+              _extentManager.setExtent(index, extent);
+              didMeasure = true;
+            }
+
+            if (!didMeasure) {
+              // No progress possible (e.g. only leading dirty items remain but
+              // scroll offset correction is not allowed). Don't spin until the
+              // budget expires.
+              break;
+            }
+          }
         });
-      }
+      });
+    } else {
+      while (precalculateExtents &&
+          _extentManager.hasDirtyItems &&
+          budget.shouldLayoutNextItem()) {
+        var start = _extentManager.cleanRangeStart;
+        var end = _extentManager.cleanRangeEnd;
 
-      if (end < childCount - 1) {
-        final index = end + 1;
-        invokeLayoutCallback((_) {
-          final extent = childManager.measureExtentForItem(index, constraints);
-          _extentManager.setExtent(index, extent);
-        });
+        if (start == null && end == null) {
+          start = childCount;
+          end = childCount;
+        } else {
+          start = start!;
+          end = end!;
+        }
+
+        // Only layout items before clean range if scroll correction is allowed.
+        // There is limited amount of scroll correction attempts during layout pass
+        // and if exceeded viewport layout will throw an exception.
+        if (start > 0 && allowScrollOffsetCorrection) {
+          final index = start - 1;
+          invokeLayoutCallback((_) {
+            final extent =
+                childManager.measureExtentForItem(index, constraints);
+            final prevExtent = _extentManager.getExtent(index);
+            _extentManager.setExtent(index, extent);
+            correction += extent - prevExtent;
+          });
+        }
+
+        if (end < childCount - 1) {
+          final index = end + 1;
+          invokeLayoutCallback((_) {
+            final extent =
+                childManager.measureExtentForItem(index, constraints);
+            _extentManager.setExtent(index, extent);
+          });
+        }
       }
     }
 
@@ -631,9 +786,20 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     int trailingGarbage = 0;
     RenderBox? lastChildWithScrollOffset;
 
-    final firstVisible = _firstWholeVisibleChild();
-    final double? firstVisibleLayoutOffset =
-        firstVisible != null ? childScrollOffset(firstVisible) : null;
+    // firstVisible is only consumed when the cross axis is resizing (see the
+    // scrollCorrection block below), so the walk over all leading cache-area
+    // children can be skipped in the common case.
+    final RenderBox? firstVisible;
+    final double? firstVisibleLayoutOffset;
+    if (!SuperSliverListPerfFlags.lazyFirstVisibleChild ||
+        (crossAxisResizing && !anchoredAtEnd)) {
+      firstVisible = _firstWholeVisibleChild();
+      firstVisibleLayoutOffset =
+          firstVisible != null ? childScrollOffset(firstVisible) : null;
+    } else {
+      firstVisible = null;
+      firstVisibleLayoutOffset = null;
+    }
 
     RenderBox? previousChild;
     int index = firstChild != null ? _indexOf(firstChild!) : 0;
@@ -699,7 +865,13 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
               constraints.remainingCacheExtent == 0)) {
         // The user either did not reach this sliver or scrolled past it.
         final extentBefore = _totalExtent();
-        final stopwatch = Stopwatch()..start();
+        // The stopwatch exists purely for the FINER log below; avoid creating
+        // and starting it on every layout of every invisible sliver.
+        final Stopwatch? stopwatch =
+            (!SuperSliverListPerfFlags.guardInvisibleLayoutLogging ||
+                    _log.isLoggable(Level.FINER))
+                ? (Stopwatch()..start())
+                : null;
         if (_extentManager.hasDirtyItems &&
             _shouldPrecalculateExtents(layoutPass)) {
           if (_shouldSkipExtentPrecalculationForInvisibleList(layoutPass)) {
@@ -725,8 +897,9 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
         }
         _layoutKeptAliveChildren();
         final extentDelta = _totalExtent() - extentBefore;
-        if (stopwatch.elapsed > const Duration(microseconds: 50) ||
-            extentDelta.abs() > precisionErrorTolerance) {
+        if (stopwatch != null &&
+            (stopwatch.elapsed > const Duration(microseconds: 50) ||
+                extentDelta.abs() > precisionErrorTolerance)) {
           _log.finer(
             () =>
                 "Spent ${stopwatch.elapsed} calculating layout info (extent delta: ${extentDelta.format()}).",
@@ -826,43 +999,98 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     var correctedStartOffset = startOffset + scrollCorrection;
 
     // Adding preceding children.
-    while ((_indexOf(firstChild!) > 0 &&
-            childScrollOffset(firstChild!)! > correctedStartOffset) ||
-        (_childScrollOffsetEstimation != null &&
-            _indexOf(firstChild!) > _childScrollOffsetEstimation!.index)) {
-      final prevOffset = childScrollOffset(firstChild!)!;
-      final previousExtent =
-          _extentManager.getExtent(_indexOf(firstChild!) - 1);
-      final box =
-          insertAndLayoutLeadingChild(childConstraints, parentUsesSize: true);
-      if (box == null) {
-        break;
-      }
-      final data = box.parentData! as SliverMultiBoxAdaptorParentData;
-      data.layoutOffset = prevOffset - previousExtent;
-      final correction = paintExtentOf(box) - previousExtent;
-      _log.finest(
-        () => "Adding preceding child with index ${_indexOf(box)} "
-            "extent: ${paintExtentOf(box)} "
-            "(${correction.format()} correction)",
-      );
-      _shiftLayoutOffsets(childAfter(box), correction);
-      // Do not correct when anchored at end and started from nothing.
-      // And only correct when there are no other slivers visible.
-      if ((!anchoredAtEnd || !layoutState.didAddInitialChild) &&
-          constraints.remainingPaintExtent ==
-              constraints.viewportMainAxisExtent) {
-        scrollCorrection += correction;
-      }
+    if (SuperSliverListPerfFlags.batchLeadingChildShift) {
+      // Deferred-shift variant: instead of shifting every subsequent child
+      // once per inserted leading child (O(k*n)), children are positioned
+      // top-down from the current first child using their *actual* extents
+      // and the accumulated correction is applied to all children in a
+      // single O(n) pass afterwards. Stored offsets lag the "real" offsets
+      // by [pendingShift] while the loop runs, which is compensated for in
+      // the loop condition.
+      double pendingShift = 0;
+      while ((_indexOf(firstChild!) > 0 &&
+              childScrollOffset(firstChild!)! + pendingShift >
+                  correctedStartOffset) ||
+          (_childScrollOffsetEstimation != null &&
+              _indexOf(firstChild!) > _childScrollOffsetEstimation!.index)) {
+        final prevOffset = childScrollOffset(firstChild!)!;
+        final previousExtent =
+            _extentManager.getExtent(_indexOf(firstChild!) - 1);
+        final box =
+            insertAndLayoutLeadingChild(childConstraints, parentUsesSize: true);
+        if (box == null) {
+          break;
+        }
+        final extent = paintExtentOf(box);
+        final data = box.parentData! as SliverMultiBoxAdaptorParentData;
+        data.layoutOffset = prevOffset - extent;
+        final correction = extent - previousExtent;
+        _log.finest(
+          () => "Adding preceding child with index ${_indexOf(box)} "
+              "extent: $extent "
+              "(${correction.format()} correction)",
+        );
+        pendingShift += correction;
+        // Do not correct when anchored at end and started from nothing.
+        // And only correct when there are no other slivers visible.
+        if ((!anchoredAtEnd || !layoutState.didAddInitialChild) &&
+            constraints.remainingPaintExtent ==
+                constraints.viewportMainAxisExtent) {
+          scrollCorrection += correction;
+        }
 
-      // If start offset is 0, we must end up at initial item, so do not correct the
-      // start offset.
-      // If start offset > 0 we care about filling up the cache area, so correct the
-      // offset depending on the extent of the child. TODO(knopp): It might be enough
-      // to just ensure that we have a single completely hidden child in the cache
-      // area. See https://github.com/flutter/flutter/issues/128601
-      if (startOffset > 0) {
-        correctedStartOffset += correction;
+        // If start offset is 0, we must end up at initial item, so do not correct the
+        // start offset.
+        // If start offset > 0 we care about filling up the cache area, so correct the
+        // offset depending on the extent of the child. TODO(knopp): It might be enough
+        // to just ensure that we have a single completely hidden child in the cache
+        // area. See https://github.com/flutter/flutter/issues/128601
+        if (startOffset > 0) {
+          correctedStartOffset += correction;
+        }
+      }
+      if (pendingShift != 0) {
+        _shiftLayoutOffsets(firstChild, pendingShift);
+      }
+    } else {
+      while ((_indexOf(firstChild!) > 0 &&
+              childScrollOffset(firstChild!)! > correctedStartOffset) ||
+          (_childScrollOffsetEstimation != null &&
+              _indexOf(firstChild!) > _childScrollOffsetEstimation!.index)) {
+        final prevOffset = childScrollOffset(firstChild!)!;
+        final previousExtent =
+            _extentManager.getExtent(_indexOf(firstChild!) - 1);
+        final box =
+            insertAndLayoutLeadingChild(childConstraints, parentUsesSize: true);
+        if (box == null) {
+          break;
+        }
+        final data = box.parentData! as SliverMultiBoxAdaptorParentData;
+        data.layoutOffset = prevOffset - previousExtent;
+        final correction = paintExtentOf(box) - previousExtent;
+        _log.finest(
+          () => "Adding preceding child with index ${_indexOf(box)} "
+              "extent: ${paintExtentOf(box)} "
+              "(${correction.format()} correction)",
+        );
+        _shiftLayoutOffsets(childAfter(box), correction);
+        // Do not correct when anchored at end and started from nothing.
+        // And only correct when there are no other slivers visible.
+        if ((!anchoredAtEnd || !layoutState.didAddInitialChild) &&
+            constraints.remainingPaintExtent ==
+                constraints.viewportMainAxisExtent) {
+          scrollCorrection += correction;
+        }
+
+        // If start offset is 0, we must end up at initial item, so do not correct the
+        // start offset.
+        // If start offset > 0 we care about filling up the cache area, so correct the
+        // offset depending on the extent of the child. TODO(knopp): It might be enough
+        // to just ensure that we have a single completely hidden child in the cache
+        // area. See https://github.com/flutter/flutter/issues/128601
+        if (startOffset > 0) {
+          correctedStartOffset += correction;
+        }
       }
     }
 
@@ -877,6 +1105,39 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       final lastChildIndex = _indexOf(lastChild!);
       if (lastChildIndex >= totalChildCount - 1) {
         return false;
+      }
+
+      if (SuperSliverListPerfFlags.hoistTrailingChildValues) {
+        // Compute the last child's trailing edge once; the baseline below
+        // computes childScrollOffset + paintExtentOf twice per call.
+        final lastChildEnd =
+            childScrollOffset(lastChild!)! + paintExtentOf(lastChild!);
+        if (lastChildEnd >= startOffset + remainingExtent) {
+          // If there is child scroll offset estimation active produce as many children
+          // as necessary. These will be removed after correcting scroll offset during
+          // garbage collection.
+          if (_childScrollOffsetEstimation != null &&
+              _childScrollOffsetEstimation!.index < lastChildIndex) {
+            return false;
+          }
+          if (layoutPass.childScrollOffsetEstimation == false) {
+            return false;
+          }
+          if (_childScrollOffsetEstimation == null &&
+              !layoutPass.sliverIsBeforeSliverWithOffsetEstimation(this)) {
+            return false;
+          }
+        }
+
+        final box = insertAndLayoutChild(childConstraints,
+            after: lastChild, parentUsesSize: true);
+        if (box == null) {
+          return false;
+        }
+        _extentManager.setExtent(_indexOf(box), paintExtentOf(box));
+        final data = box.parentData! as SliverMultiBoxAdaptorParentData;
+        data.layoutOffset = lastChildEnd;
+        return true;
       }
 
       if (childScrollOffset(lastChild!)! + paintExtentOf(lastChild!) >=
