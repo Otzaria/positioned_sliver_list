@@ -1560,15 +1560,19 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       extent: _extentManager.getExtent(index),
       layoutOffset: _extentManager.offsetForIndex(index),
     );
-    final viewport = getViewport()!;
-    return viewport
-        .getOffsetToRevealExt(
-          renderObject,
-          alignment,
-          esimationOnly: estimationOnly,
-          rect: rect,
-        )
-        .offset;
+    try {
+      final viewport = getViewport()!;
+      return viewport
+          .getOffsetToRevealExt(
+            renderObject,
+            alignment,
+            esimationOnly: estimationOnly,
+            rect: rect,
+          )
+          .offset;
+    } finally {
+      renderObject.dispose();
+    }
   }
 
   @override
