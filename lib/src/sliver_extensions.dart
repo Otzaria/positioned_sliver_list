@@ -149,8 +149,12 @@ extension RenderViewportExt on RenderAbstractViewport {
       axis: axis,
     );
     OffsetToRevealContext._contexts.add(context);
-    var result = getOffsetToReveal(target, alignment, rect: rect);
-    OffsetToRevealContext._contexts.removeLast();
+    late RevealedOffset result;
+    try {
+      result = getOffsetToReveal(target, alignment, rect: rect);
+    } finally {
+      OffsetToRevealContext._contexts.removeLast();
+    }
     final obstruction = target.getParentChildObstructionExtent();
 
     final resolvedAxis =
