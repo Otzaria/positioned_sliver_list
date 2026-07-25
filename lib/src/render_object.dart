@@ -1263,6 +1263,23 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
         // Bottom target (or cross-axis / initial-child cases): pin the
         // trailing edge by correcting for the full extent change.
         scrollCorrection += delta;
+
+        // InitialScrollPosition.end first jumps using estimated extents. If
+        // measuring the children reveals that the entire list fits in the
+        // viewport, applying the full extent delta would move the viewport
+        // past its leading boundary. For example: an estimated 800px list in
+        // a 600px viewport starts at 200px; if its real extent is 160px, the
+        // raw -640px delta would leave pixels at -440px. Bouncing physics then
+        // visibly springs the content to zero after the first frame.
+        //
+        // The leading boundary is stable during this initial resolution, so
+        // cap the correction there. The final initial-position block below
+        // will still resolve against the now-accurate total extent.
+        if (!_didResolveInitialScrollPosition &&
+            _initialScrollPosition == InitialScrollPosition.end) {
+          final position = getViewport()!.offset;
+          scrollCorrection = math.max(scrollCorrection, -position.pixels);
+        }
       } else {
         // Item target: pin trailing edge only while the target's desired
         // scroll offset would be clamped to maxScrollExtent (i.e. the item
