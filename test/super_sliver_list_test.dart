@@ -52,6 +52,36 @@ class _TestLayoutBudget extends SuperSliverListLayoutBudget {
   }
 }
 
+class _InvalidateChildDuringLayout extends SingleChildRenderObjectWidget {
+  const _InvalidateChildDuringLayout({required Widget sliver})
+      : super(child: sliver);
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderInvalidateChildDuringLayout();
+}
+
+/// Reproduces the state a [RenderSuperSliverList] ends up in when it requests
+/// a scroll offset correction and the viewport finishes the frame without
+/// laying it out again (i.e. when the correction loop is cut short):
+/// `markNeedsLayout` invoked through `invokeLayoutCallback` while an ancestor
+/// is being laid out records the dirty flag on the sliver but never reaches
+/// the pipeline owner, so nothing schedules the sliver for layout.
+class _RenderInvalidateChildDuringLayout extends RenderProxySliver {
+  bool invalidateChildDuringNextLayout = false;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    if (invalidateChildDuringNextLayout) {
+      invalidateChildDuringNextLayout = false;
+      invokeLayoutCallback((_) {
+        child!.markNeedsLayout();
+      });
+    }
+  }
+}
+
 class _KeepAliveWidget extends StatefulWidget {
   const _KeepAliveWidget({
     super.key,
@@ -863,6 +893,93 @@ void main() {
       // This must not cause maximum layout cycle exceeded exception.
       controller.jumpTo(controller.position.maxScrollExtent);
       await tester.pumpAndSettle();
+    });
+
+    testWidgets("delayed layout pass recovers sliver invalidated during layout",
+        // The frame that leaves the sliver dirty would trip an unrelated
+        // assert in the semantics flush ('!childSemantics.renderObject
+        // ._needsLayout') before the delayed layout pass gets a chance to run.
+        semanticsEnabled: false, (tester) async {
+      // When a scroll offset correction is requested during layout,
+      // RenderSuperSliverList.layout marks itself dirty through the parent's
+      // invokeLayoutCallback. If the viewport then finishes the frame without
+      // laying the sliver out again (this can happen when dragging the
+      // scrollbar fast), the dirty flag is set but was never propagated to the
+      // pipeline owner. The post-frame callback scheduled by
+      // _markNeedsLayoutDelayed must still be able to get the sliver laid out
+      // in that state: a plain markNeedsLayout() is a no-op there (asserting
+      // in debug mode that the relayout boundary is dirty - which it is not)
+      // and the sliver would silently never lay out again.
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+
+      const itemCount = 200;
+      const itemHeight = 100.0;
+      const viewportHeight = 500.0;
+
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+            child: SizedBox(
+              height: viewportHeight,
+              child: CustomScrollView(
+                physics: const ClampingScrollPhysics(),
+                controller: controller,
+                slivers: [
+                  _InvalidateChildDuringLayout(
+                    sliver: SuperSliverList(
+                      extentPrecalculationPolicy:
+                          _SimpleExtentPrecalculatePolicy(precalculate: true),
+                      // Intentionally wrong estimate so that settling the
+                      // precalculated extents visibly changes the scroll
+                      // extent.
+                      extentEstimation: (_, __) => 10,
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => SizedBox(
+                          height: itemHeight,
+                          child: Text("Tile $index"),
+                        ),
+                        childCount: itemCount,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Extent precalculation is limited by _TestLayoutBudget, so after the
+      // first frame there are still dirty extents and the sliver has scheduled
+      // a delayed layout pass for the next frame.
+      expect(
+        controller.position.maxScrollExtent,
+        lessThan(itemCount * itemHeight - viewportHeight),
+      );
+
+      final proxy = tester.renderObject<_RenderInvalidateChildDuringLayout>(
+        find.byType(_InvalidateChildDuringLayout),
+      );
+      proxy.invalidateChildDuringNextLayout = true;
+      await tester.pump();
+      // Without proper handling the post-frame callback scheduled during this
+      // frame throws "_debugRelayoutBoundaryAlreadyMarkedNeedsLayout" failed
+      // assertion (and in release mode the sliver would stay dirty forever,
+      // freezing the list).
+      expect(tester.takeException(), isNull);
+
+      // The delayed layout passes must be able to finish precalculating the
+      // remaining extents.
+      var frames = 0;
+      while (tester.binding.hasScheduledFrame && frames++ < 100) {
+        await tester.pump();
+      }
+      expect(
+        controller.position.maxScrollExtent,
+        roughlyEquals(itemCount * itemHeight - viewportHeight),
+      );
     });
   });
   group("Fuzzer", () {

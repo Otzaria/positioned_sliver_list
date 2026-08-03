@@ -738,10 +738,36 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       for (final s in pass.slivers) {
         final theirIndex = pass.sliversDuringLayout.indexOf(s);
         if (theirIndex == -1 || theirIndex >= thisIndex) {
-          s.markNeedsLayout();
+          s._markNeedsLayoutWithAncestors();
         }
       }
     });
+  }
+
+  // A sliver can end up with its dirty layout flag set while the notification
+  // never reached its relayout boundary: when scroll offset correction is
+  // requested from `layout()` below, `markNeedsLayout` runs inside the
+  // parent's `invokeLayoutCallback`, which records the dirty flag on the
+  // ancestor chain but suppresses propagation to the pipeline owner. If the
+  // viewport then finishes the frame without laying this sliver out again
+  // (e.g. when dragging the scrollbar fast), a plain `markNeedsLayout()` here
+  // is a no-op debug-asserting that the boundary is dirty — which it is not —
+  // and in release mode the sliver silently never lays out again. Marking the
+  // ancestor chain root-first guarantees every relayout boundary above is
+  // dirty and registered with the pipeline owner before the sliver itself is
+  // marked. Clean unrelated subtrees still short-circuit in `layout()`, so
+  // this does not force a full-tree relayout.
+  void _markNeedsLayoutWithAncestors() {
+    if (!attached) {
+      return;
+    }
+    final chain = <RenderObject>[];
+    for (RenderObject? node = this; node != null; node = node.parent) {
+      chain.add(node);
+    }
+    for (final node in chain.reversed) {
+      node.markNeedsLayout();
+    }
   }
 
   double estimateExtentForItem(int? index) {
