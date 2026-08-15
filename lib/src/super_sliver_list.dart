@@ -1,5 +1,6 @@
 import "dart:math" as math;
 
+import "package:flutter/foundation.dart" show internal;
 import "package:flutter/rendering.dart";
 import "package:flutter/widgets.dart";
 import "package:logging/logging.dart";
@@ -124,6 +125,16 @@ class ListController extends ChangeNotifier {
   set stickTarget(StickTarget? value) {
     if (_stickTarget == value) return;
     _stickTarget = value;
+    _delegate?.stickTarget = value;
+  }
+
+  /// Overrides the target used for corrections during layout without changing
+  /// the public [stickTarget] state.
+  ///
+  /// Used by [StickToTarget] for configurations where correction is handled by
+  /// its direction-aware post-frame fallback instead of the render object.
+  @internal
+  set renderStickTarget(StickTarget? value) {
     _delegate?.stickTarget = value;
   }
 
@@ -346,8 +357,7 @@ class ListController extends ChangeNotifier {
   void unsetDelegate(ExtentManager delegate) {
     if (_delegate == delegate) {
       _delegate?.removeListener(notifyListeners);
-      _delegate?.extentsChangedListenable
-          .removeListener(_notifyExtentsChanged);
+      _delegate?.extentsChangedListenable.removeListener(_notifyExtentsChanged);
       _delegate = null;
       onDetached?.call();
     }

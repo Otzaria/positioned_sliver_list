@@ -1,76 +1,34 @@
 import "dart:async";
 
-import "package:flutter/gestures.dart" show PointerScrollEvent;
+import "package:flutter/gestures.dart";
 import "package:flutter/widgets.dart";
 
 import "perf_flags.dart";
 import "stick_target.dart";
 import "super_sliver_list.dart";
 
-/// Keeps a scroll view pinned to the bottom (or to a specific item) as
-/// content grows.
+/// Keeps a [SuperSliverList] pinned to a target while its content changes.
 ///
-/// ## Target states
-///
-/// The [target] parameter controls all behavior:
-///
-/// - `null` — **disabled**. Normal scroll view, no corrections, no tracking.
-/// - [StickTarget.bottom] — **stick to bottom**. The render object applies
-///   zero-lag scroll corrections during layout to keep the trailing edge
-///   pinned. A post-frame fallback handles edge cases.
-/// - [StickTarget] with an index — **pin a specific item**. The item's top
-///   pixel naturally stays put as it grows; a post-frame callback handles
-///   initial positioning and drift.
-///
-/// ## Example — chat with streaming
-///
-/// ```dart
-/// StickToTarget(
-///   scrollController: _scrollController,
-///   listController: _listController,
-///   target: isStreaming
-///       ? StickTarget(index: responseIndex, alignment: 0.1,
-///           rect: const Rect.fromLTWH(0, 0, 0, 1))
-///       : isRunning
-///           ? const StickTarget.bottom()
-///           : null,
-///   child: SuperListView.builder(/* ... */),
-/// )
-/// ```
+/// User scrolling disengages the target. For [StickTarget.bottom], scrolling
+/// back into [threshold] re-engages it. Pointer interaction temporarily
+/// suspends corrections so widgets can expand under a tap without fighting the
+/// gesture.
 class StickToTarget extends StatefulWidget {
   const StickToTarget({
     super.key,
     required this.scrollController,
     required this.listController,
+    required this.target,
     required this.child,
-    this.threshold = 20.0,
-    this.target,
+    this.threshold = 20,
     this.onStickStateChanged,
   });
 
-  /// The scroll controller used by the scrollable child.
   final ScrollController scrollController;
-
-  /// The list controller used by the [SuperSliverList] or [SuperListView].
   final ListController listController;
-
-  /// The scrollable child widget.
-  final Widget child;
-
-  /// How close to the bottom (in logical pixels) counts as "at the bottom."
-  ///
-  /// Defaults to 20.0.
-  final double threshold;
-
-  /// What to stick to, or `null` to disable.
-  ///
-  /// See the class documentation for the three states.
   final StickTarget? target;
-
-  /// Called when the stick state changes.
-  ///
-  /// `true` means the list is stuck (auto-tracking).
-  /// `false` means the user has scrolled away or sticking is disabled.
+  final Widget child;
+  final double threshold;
   final ValueChanged<bool>? onStickStateChanged;
 
   @override
@@ -78,296 +36,341 @@ class StickToTarget extends StatefulWidget {
 }
 
 class _StickToTargetState extends State<StickToTarget> {
-  /// Which notification channel this state subscribed to (captured once so
-  /// add/removeListener always target the same channel even if the flag is
-  /// flipped at runtime).
-  late final bool _useExtentsChannel =
-      SuperSliverListPerfFlags.extentsOnlyStickNotifications;
+  static const _interactionGrace = Duration(milliseconds: 500);
+  static const _precisionErrorTolerance = 0.001;
 
-  /// Content-change notifications: with the extents-only channel we are not
-  /// called on every scroll frame, only when content geometry changes.
-  Listenable _contentListenable(ListController controller) =>
-      _useExtentsChannel ? controller.extentsChangedListenable : controller;
-
-  bool _isStuck = false;
+  bool _isSticking = false;
   bool _userIsInteracting = false;
-  bool _mouseWheelInteracting = false;
-  bool _pendingJump = false;
-
-  /// When true, re-sticking is suppressed until the user actively touches
-  /// the screen. Set when we intentionally unstick (e.g. streaming ended).
-  bool _requireUserScrollToReStick = false;
-
-  /// Timer for delayed re-evaluation after user interaction ends.
+  bool _userOptedOut = false;
+  bool _isChangingScrollOffset = false;
+  final Set<int> _activePointers = <int>{};
   Timer? _interactionTimer;
+  int _jumpGeneration = 0;
 
   @override
   void initState() {
     super.initState();
-    // If target is set at init, start stuck if at bottom (or assume bottom
-    // since there are no clients yet).
-    if (widget.target != null) {
-      _isStuck = true;
-      _syncRenderObjectTarget();
-    }
     _contentListenable(widget.listController).addListener(_onContentChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _evaluateInitialPosition();
+    });
   }
 
   @override
-  void didUpdateWidget(StickToTarget oldWidget) {
+  void didUpdateWidget(covariant StickToTarget oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.listController != widget.listController) {
-      _contentListenable(oldWidget.listController)
-          .removeListener(_onContentChanged);
+    final listControllerChanged =
+        oldWidget.listController != widget.listController;
+    final scrollControllerChanged =
+        oldWidget.scrollController != widget.scrollController;
+    final targetChanged = oldWidget.target != widget.target;
+
+    if (listControllerChanged) {
+      _contentListenable(
+        oldWidget.listController,
+      ).removeListener(_onContentChanged);
       oldWidget.listController.stickTarget = null;
       _contentListenable(widget.listController).addListener(_onContentChanged);
-      _syncRenderObjectTarget();
     }
 
-    if (widget.target != oldWidget.target) {
-      _onTargetChanged(oldWidget.target);
-    }
-  }
-
-  void _onTargetChanged(StickTarget? oldTarget) {
-    final newTarget = widget.target;
-
-    if (newTarget == null) {
-      // Disabled — unstick.
-      if (_isStuck) _setStuck(false);
+    if (scrollControllerChanged) {
+      _cancelScheduledJumps();
+      _isSticking = false;
+      _userOptedOut = false;
+      oldWidget.listController.stickTarget = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _evaluateInitialPosition();
+      });
       return;
     }
 
-    if (oldTarget == null) {
-      // Was disabled, now enabled — re-stick if at bottom.
-      if (!_isStuck && _isAtBottom) {
-        _setStuck(true);
+    if (targetChanged) {
+      if (widget.target == null) {
+        _userOptedOut = false;
+        _setSticking(false);
+        return;
       }
-      _syncRenderObjectTarget();
-      if (_isStuck && !newTarget.isBottom) {
-        _scheduleJump();
+
+      if (_isSticking) {
+        // The boolean state did not change, but the render object still needs
+        // the new target value.
+        widget.listController.stickTarget = widget.target;
+        _syncRenderTarget();
+        _scheduleJumpToTarget();
+      } else if (!_userOptedOut && _shouldEngageTarget()) {
+        _setSticking(true);
+        _scheduleJumpToTarget();
       }
-      return;
+    } else if (listControllerChanged) {
+      widget.listController.stickTarget = _isSticking ? widget.target : null;
+      _syncRenderTarget();
+      if (_isSticking) _scheduleJumpToTarget();
     }
 
-    // Both old and new are non-null — target type changed.
-    if (!oldTarget.isBottom && newTarget.isBottom) {
-      // Streaming ended but conversation is still running: transition from
-      // item-pinning back to bottom-sticking.
-      // Only re-stick if the user is actually at the bottom. If they scrolled
-      // away during item-pinning, respect that and stay unstuck.
-      _requireUserScrollToReStick = false;
-      if (!_isStuck) {
-        if (_isAtBottom) {
-          _setStuck(true);
-        }
-      } else {
-        _syncRenderObjectTarget();
-      }
-      if (_isStuck) {
-        _scheduleJump();
-      }
-      return;
-    }
-
-    _syncRenderObjectTarget();
-    if (_isStuck && !newTarget.isBottom) {
-      _scheduleJump();
-    }
+    // A threshold update deliberately does not re-engage an unstuck list.
   }
 
   @override
   void dispose() {
     _interactionTimer?.cancel();
-    _contentListenable(widget.listController)
-        .removeListener(_onContentChanged);
+    _cancelScheduledJumps();
+    _contentListenable(
+      widget.listController,
+    ).removeListener(_onContentChanged);
     widget.listController.stickTarget = null;
     super.dispose();
   }
 
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
+  Listenable _contentListenable(ListController controller) =>
+      SuperSliverListPerfFlags.extentsOnlyStickNotifications
+          ? controller.extentsChangedListenable
+          : controller;
 
-  bool get _isAtBottom {
-    if (!widget.scrollController.hasClients) return true;
-    return widget.scrollController.position.extentAfter <= widget.threshold;
+  void _evaluateInitialPosition() {
+    if (!widget.scrollController.hasClients) {
+      _setSticking(false, notify: false);
+      return;
+    }
+    _userOptedOut = false;
+    _setSticking(_shouldEngageTarget(), notify: false);
+    if (_isSticking) _scheduleJumpToTarget();
   }
 
-  void _setStuck(bool value) {
-    if (_isStuck == value) return;
-    _isStuck = value;
-    _syncRenderObjectTarget();
-    widget.onStickStateChanged?.call(value);
+  bool _shouldEngageTarget() {
+    final target = widget.target;
+    if (target == null || !widget.scrollController.hasClients) return false;
+    if (target.isBottom) return _isAtBottom();
+    return _targetExists(target);
   }
 
-  /// Tells the render object what to correct for during layout.
-  ///
-  /// Both bottom and item-based targets get render-object corrections when
-  /// anchored at the end. Without this, item-based targets that are clamped
-  /// to maxScrollExtent (effectively at the bottom) would lag by one frame
-  /// on every content growth.
-  void _syncRenderObjectTarget() {
-    final shouldCorrect =
-        _isStuck && widget.target != null && !_userIsInteracting;
-    widget.listController.stickTarget = shouldCorrect ? widget.target : null;
+  bool _targetExists(StickTarget target) =>
+      target.isBottom ||
+      (target.index >= 0 && target.index < widget.listController.numberOfItems);
+
+  bool _isAtBottom() {
+    if (!widget.scrollController.hasClients) return false;
+    final position = widget.scrollController.position;
+    return (_bottomOffset(position) - position.pixels).abs() <=
+        widget.threshold;
   }
 
-  // ---------------------------------------------------------------------------
-  // User interaction — expand-in-place support
-  // ---------------------------------------------------------------------------
+  double _bottomOffset(ScrollPosition position) {
+    return switch (position.axisDirection) {
+      AxisDirection.down || AxisDirection.right => position.maxScrollExtent,
+      AxisDirection.up || AxisDirection.left => position.minScrollExtent,
+    };
+  }
 
-  void _onInteractionStart() {
-    _mouseWheelInteracting = false; // Touch/pan overrides mouse wheel.
-    _userIsInteracting = true;
-    _requireUserScrollToReStick = false;
+  void _setSticking(bool value, {bool notify = true}) {
+    final target = value ? widget.target : null;
+    final changed = _isSticking != value;
+    _isSticking = value;
+    widget.listController.stickTarget = target;
+    _syncRenderTarget();
+    if (changed && notify) widget.onStickStateChanged?.call(value);
+  }
+
+  void _syncRenderTarget() {
+    final position = widget.scrollController.hasClients
+        ? widget.scrollController.position
+        : null;
+    final renderTarget = _isSticking &&
+            !_userIsInteracting &&
+            position?.axisDirection != AxisDirection.up
+        ? widget.target
+        : null;
+    widget.listController.renderStickTarget = renderTarget;
+  }
+
+  void _optOutFromUserScroll() {
+    _userOptedOut = true;
+    _setSticking(false);
+  }
+
+  void _beginInteraction() {
     _interactionTimer?.cancel();
-    // Suspend render-object correction. Allows expand-in-place: tapping
-    // to expand an item won't fight stick-to-bottom corrections.
+    _userIsInteracting = true;
+    // Keep the logical stick state, but suspend render-object corrections.
     widget.listController.stickTarget = null;
   }
 
-  void _onInteractionEnd() {
-    // Don't re-sync immediately — expansion animations may still be running.
-    // Keep corrections suppressed for a short window, then re-evaluate.
+  void _scheduleInteractionEnd() {
     _interactionTimer?.cancel();
-    _interactionTimer = Timer(const Duration(milliseconds: 500), () {
-      if (!mounted) return;
-      _userIsInteracting = false;
-      if (_isStuck && !_isAtBottom) {
-        // Interaction moved us away from the bottom (e.g. expand).
-        _setStuck(false);
-      } else {
-        _syncRenderObjectTarget();
-      }
-    });
+    _interactionTimer = Timer(_interactionGrace, _finishInteraction);
   }
 
-  // ---------------------------------------------------------------------------
-  // Content changes
-  // ---------------------------------------------------------------------------
+  void _finishInteraction() {
+    if (!mounted || _activePointers.isNotEmpty) return;
+    _userIsInteracting = false;
 
-  void _onContentChanged() {
-    if (!_isStuck) return;
-    if (widget.target == null) return; // Disabled.
-    if (_userIsInteracting && widget.target!.isBottom) {
-      return; // Expand-in-place.
+    // Only bottom sticking can be regained by user scrolling. Item targets
+    // remain opted out until their owner explicitly supplies a fresh state.
+    if (_userOptedOut && widget.target?.isBottom == true && _isAtBottom()) {
+      _userOptedOut = false;
+      _setSticking(true);
     }
-    _scheduleJump();
-  }
-
-  void _scheduleJump() {
-    if (_pendingJump) return;
-    _pendingJump = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _pendingJump = false;
-      if (!mounted || !_isStuck) return;
-      final target = widget.target;
-      if (target == null) return;
-      if (target.isBottom) {
-        _jumpToBottom();
-      } else {
-        _jumpToTarget();
-      }
-    });
-  }
-
-  /// Fallback for the simple stick-to-bottom case.
-  ///
-  /// The render object correction handles most cases during layout (zero lag).
-  /// This catches edge cases where the correction can't fire, such as when
-  /// content first exceeds the viewport.
-  void _jumpToBottom() {
-    if (!widget.scrollController.hasClients) return;
-    final pos = widget.scrollController.position;
-    if (pos.extentAfter > widget.threshold) {
-      pos.jumpTo(pos.maxScrollExtent);
+    if (_isSticking) {
+      widget.listController.stickTarget = widget.target;
+      _syncRenderTarget();
+      _onContentChanged();
     }
   }
 
-  /// Jump to keep the target item pinned at the specified viewport position.
-  ///
-  /// Only scrolls forward — avoids pulling the user back up when extents
-  /// shift during streaming.
-  void _jumpToTarget() {
-    if (!widget.scrollController.hasClients) return;
-    if (!widget.listController.isAttached) return;
-    final target = widget.target;
-    if (target == null || target.isBottom) return;
-    if (target.index >= widget.listController.numberOfItems) return;
+  void _onPointerDown(PointerDownEvent event) {
+    _activePointers.add(event.pointer);
+    _beginInteraction();
+  }
 
-    final targetOffset = widget.listController.getOffsetToReveal(
-      target.index,
-      target.alignment,
-      rect: target.rect,
-    );
-    if (!targetOffset.isFinite) return;
+  void _onPointerUp(PointerUpEvent event) {
+    _activePointers.remove(event.pointer);
+    if (_activePointers.isEmpty) _scheduleInteractionEnd();
+  }
 
-    final pos = widget.scrollController.position;
-    final clampedOffset = targetOffset.clamp(
-      pos.minScrollExtent,
-      pos.maxScrollExtent,
-    );
+  void _onPointerCancel(PointerCancelEvent event) {
+    _activePointers.remove(event.pointer);
+    if (_activePointers.isEmpty) _scheduleInteractionEnd();
+  }
 
-    // Only scroll forward, never backwards.
-    if (clampedOffset > pos.pixels + 1.0) {
-      pos.jumpTo(clampedOffset);
-    }
+  void _onPointerSignal(PointerSignalEvent event) {
+    _beginInteraction();
+    // A wheel signal at an edge may produce no ScrollEndNotification.
+    _scheduleInteractionEnd();
   }
 
   bool _onScrollNotification(ScrollNotification notification) {
-    if (!widget.scrollController.hasClients) return false;
-    if (widget.target == null) return false; // Disabled.
-
-    final atBottom = _isAtBottom;
-
-    if (_isStuck && _userIsInteracting && !atBottom) {
-      // User scrolled away from the bottom.
-      _setStuck(false);
-    } else if (!_isStuck &&
-        atBottom &&
-        !_requireUserScrollToReStick &&
-        widget.target != null) {
-      _setStuck(true);
+    if (notification.depth != 0) {
+      if (notification is ScrollStartNotification && _isSticking) {
+        // Pointer events bubble through this widget even when a descendant
+        // scrollable owns the gesture. Undo the outer interaction suspension.
+        _activePointers.clear();
+        _interactionTimer?.cancel();
+        _userIsInteracting = false;
+        widget.listController.stickTarget = widget.target;
+        _syncRenderTarget();
+      }
+      return false;
     }
 
-    if (notification is ScrollEndNotification) {
-      _userIsInteracting = false;
-      if (_mouseWheelInteracting) {
-        // Mouse wheel has no pointer-up, so re-sync here instead of via
-        // _onInteractionEnd's timer (which exists for touch expand-in-place).
-        _mouseWheelInteracting = false;
-        _syncRenderObjectTarget();
+    if (notification is ScrollStartNotification) {
+      _beginInteraction();
+    } else if (notification is ScrollUpdateNotification) {
+      if (!_isChangingScrollOffset && _isSticking) {
+        _optOutFromUserScroll();
+      }
+    } else if (notification is ScrollEndNotification) {
+      // Pointer-up owns the grace period for touch interaction. Keyboard and
+      // semantics scrolling have no active pointer, so may finish immediately.
+      if (_activePointers.isEmpty && !_interactionTimerIsActive) {
+        _finishInteraction();
       }
     }
-
     return false;
+  }
+
+  bool get _interactionTimerIsActive => _interactionTimer?.isActive ?? false;
+
+  bool _onMetricsNotification(ScrollMetricsNotification notification) {
+    if (notification.depth == 0 && _isSticking && !_userIsInteracting) {
+      _scheduleJumpToTarget();
+    }
+    return false;
+  }
+
+  void _onContentChanged() {
+    if (!_isSticking || _userIsInteracting) return;
+    final target = widget.target;
+    if (target == null) return;
+    if (!_targetExists(target)) {
+      _userOptedOut = true;
+      _setSticking(false);
+      return;
+    }
+
+    widget.listController.stickTarget = target;
+    _syncRenderTarget();
+    _scheduleJumpToTarget();
+  }
+
+  void _cancelScheduledJumps() {
+    _jumpGeneration++;
+  }
+
+  void _scheduleJumpToTarget() {
+    final generation = ++_jumpGeneration;
+    final scrollController = widget.scrollController;
+    final listController = widget.listController;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          generation != _jumpGeneration ||
+          scrollController != widget.scrollController ||
+          listController != widget.listController ||
+          !_isSticking ||
+          _userIsInteracting) {
+        return;
+      }
+      _jumpToTarget(scrollController, listController);
+    });
+  }
+
+  void _jumpToTarget(
+    ScrollController scrollController,
+    ListController listController,
+  ) {
+    if (!scrollController.hasClients) return;
+    final target = widget.target;
+    if (target == null) return;
+
+    final position = scrollController.position;
+    late final double desiredOffset;
+    if (target.isBottom) {
+      desiredOffset = _bottomOffset(position);
+    } else {
+      if (!_targetExists(target)) {
+        _userOptedOut = true;
+        _setSticking(false);
+        return;
+      }
+      desiredOffset = listController.getOffsetToReveal(
+        target.index,
+        target.alignment,
+        rect: target.rect,
+      );
+    }
+
+    if (!desiredOffset.isFinite) return;
+    final clampedOffset = desiredOffset.clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if ((clampedOffset - position.pixels).abs() <= _precisionErrorTolerance) {
+      return;
+    }
+
+    _isChangingScrollOffset = true;
+    try {
+      scrollController.jumpTo(clampedOffset);
+    } finally {
+      _isChangingScrollOffset = false;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Listener(
-      onPointerDown: (_) => _onInteractionStart(),
-      onPointerUp: (_) => _onInteractionEnd(),
-      onPointerCancel: (_) => _onInteractionEnd(),
-      onPointerPanZoomStart: (_) => _onInteractionStart(),
-      onPointerPanZoomEnd: (_) => _onInteractionEnd(),
-      onPointerSignal: (event) {
-        if (event is PointerScrollEvent) {
-          // Mouse wheel scrolling — mark as interacting so the scroll
-          // notification handler can unstick if the user wheels away.
-          _mouseWheelInteracting = true;
-          _userIsInteracting = true;
-          _requireUserScrollToReStick = false;
-          _interactionTimer?.cancel();
-          widget.listController.stickTarget = null;
-        }
-      },
       behavior: HitTestBehavior.translucent,
-      child: NotificationListener<ScrollNotification>(
-        onNotification: _onScrollNotification,
-        child: widget.child,
+      onPointerDown: _onPointerDown,
+      onPointerUp: _onPointerUp,
+      onPointerCancel: _onPointerCancel,
+      onPointerSignal: _onPointerSignal,
+      child: NotificationListener<ScrollMetricsNotification>(
+        onNotification: _onMetricsNotification,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: _onScrollNotification,
+          child: widget.child,
+        ),
       ),
     );
   }
