@@ -14,6 +14,7 @@ void main() {
 
       var showResponse = false;
       var pinResponse = false;
+      var responseHeight = 700.0;
       late StateSetter rebuild;
 
       await tester.pumpWidget(
@@ -50,9 +51,9 @@ void main() {
                     },
                     itemBuilder: (context, index) {
                       if (showResponse && index == 3) {
-                        return const SizedBox(
-                          key: Key("response"),
-                          height: 700,
+                        return SizedBox(
+                          key: const Key("response"),
+                          height: responseHeight,
                         );
                       }
                       if (index == itemCount - 1) {
@@ -98,6 +99,64 @@ void main() {
         tester.getTopLeft(find.byKey(const Key("response"))).dy,
         closeTo(100, 1),
       );
+
+      // Streaming a long response repeatedly changes the pinned tile's
+      // extent. Layout corrections must not be mistaken for user scrolling.
+      for (final height in [900.0, 1300.0, 1800.0, 2400.0]) {
+        rebuild(() => responseHeight = height);
+        await tester.pumpAndSettle();
+        expect(
+          tester.getTopLeft(find.byKey(const Key("response"))).dy,
+          closeTo(100, 1),
+          reason: "response top after growing to $height",
+        );
+        expect(listController.stickTarget, isNotNull);
+      }
+    },
+  );
+
+  testWidgets(
+    "pins a newly appended item when its target arrives in the same build",
+    (tester) async {
+      final scrollController = ScrollController();
+      final listController = ListController();
+      addTearDown(scrollController.dispose);
+      addTearDown(listController.dispose);
+      var itemCount = 4;
+      StickTarget? target;
+      late StateSetter rebuild;
+
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) {
+            rebuild = setState;
+            return _TestList(
+              scrollController: scrollController,
+              listController: listController,
+              initialScrollPosition: InitialScrollPosition.start,
+              target: target,
+              itemCount: itemCount,
+              itemBuilder: (context, index) => SizedBox(
+                key: ValueKey(index),
+                height: index == 4 ? 2400 : 200,
+              ),
+            );
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      rebuild(() {
+        itemCount = 5;
+        target = _target(index: 4);
+      });
+      await tester.pumpAndSettle();
+
+      // didUpdateWidget sees the old ListController item count when a target
+      // and its item are supplied in the same build, so it must retry after
+      // sliver layout.
+      expect(_itemTop(tester, 4), closeTo(100, 1));
+      expect(listController.stickTarget, _target(index: 4));
     },
   );
 

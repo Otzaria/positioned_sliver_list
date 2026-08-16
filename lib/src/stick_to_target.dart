@@ -103,6 +103,11 @@ class _StickToTargetState extends State<StickToTarget> {
       } else if (!_userOptedOut && _shouldEngageTarget()) {
         _setSticking(true);
         _scheduleJumpToTarget();
+      } else if (!_userOptedOut && !widget.target!.isBottom) {
+        // A newly appended item is not reflected in ListController until the
+        // sliver has processed this build. Retry after layout instead of
+        // permanently missing the target transition.
+        _scheduleTargetEngagementAfterLayout(widget.target!);
       }
     } else if (listControllerChanged) {
       widget.listController.stickTarget = _isSticking ? widget.target : null;
@@ -296,6 +301,22 @@ class _StickToTargetState extends State<StickToTarget> {
 
   void _cancelScheduledJumps() {
     _jumpGeneration++;
+  }
+
+  void _scheduleTargetEngagementAfterLayout(StickTarget target) {
+    final generation = ++_jumpGeneration;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          generation != _jumpGeneration ||
+          widget.target != target ||
+          _isSticking ||
+          _userOptedOut ||
+          !_shouldEngageTarget()) {
+        return;
+      }
+      _setSticking(true);
+      _scheduleJumpToTarget();
+    });
   }
 
   void _scheduleJumpToTarget() {
