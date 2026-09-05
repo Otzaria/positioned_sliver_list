@@ -7,13 +7,17 @@ import "extent_manager.dart";
 class AnimateToItem {
   AnimateToItem({
     required this.extentManager,
+    required Object revealOwner,
     required this.index,
     required this.alignment,
     required this.rect,
     required this.position,
     required this.duration,
     required this.curve,
-  });
+  }) : _revealOwner = revealOwner;
+
+  final Object _revealOwner;
+  VoidCallback? onDisposed;
 
   final ExtentManager extentManager;
   final ValueGetter<int?> index;
@@ -29,6 +33,7 @@ class AnimateToItem {
   void animate() {
     final index = this.index();
     if (index == null) {
+      cancel();
       return;
     }
     final start = position.pixels;
@@ -46,7 +51,7 @@ class AnimateToItem {
     _controller = controller;
     controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        cancel();
+        _disposeController();
       }
     });
     final animation = controller.drive(
@@ -55,7 +60,8 @@ class AnimateToItem {
     animation.addListener(() {
       final value = animation.value;
       final index = this.index();
-      if (index == null) {
+      if (index == null ||
+          !identical(_revealOwner, extentManager.revealOwner)) {
         cancel();
         return;
       }
@@ -64,6 +70,7 @@ class AnimateToItem {
         alignment,
         rect: rect,
         estimationOnly: value < 1.0,
+        owner: _revealOwner,
       );
       if (value < 1.0) {
         // Clamp position during animation to prevent overscroll.
@@ -88,12 +95,19 @@ class AnimateToItem {
 
   /// Cancels the animation and disposes resources.
   void cancel() {
+    extentManager.cancelReveal(_revealOwner);
+    _disposeController();
+  }
+
+  void _disposeController() {
     final controller = _controller;
     if (controller != null) {
       _controller = null;
       controller.stop();
       controller.dispose();
     }
+    onDisposed?.call();
+    onDisposed = null;
   }
 
   /// Whether the animation is currently running.

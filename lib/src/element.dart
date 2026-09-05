@@ -2,6 +2,7 @@ import "package:flutter/rendering.dart";
 import "package:flutter/widgets.dart";
 
 import "extent_manager.dart";
+import "header_anchor.dart";
 import "render_object.dart";
 import "super_sliver_list.dart";
 
@@ -42,6 +43,10 @@ class SuperSliverMultiBoxAdaptorElement extends SliverMultiBoxAdaptorElement
   void onMarkNeedsLayout() {
     renderObject.markNeedsLayout();
   }
+
+  @override
+  HeaderAnchorHandle? preserveHeader(RenderBox header) =>
+      renderObject.preserveHeader(header);
 
   @override
   double estimateExtentForItem(int? index) {

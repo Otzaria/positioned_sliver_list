@@ -1,13 +1,12 @@
 import "dart:math" as math;
-
 import "package:flutter/foundation.dart" show internal;
 import "package:flutter/rendering.dart";
 import "package:flutter/widgets.dart";
 import "package:logging/logging.dart";
-
 import "animate_to_item.dart";
 import "element.dart";
 import "extent_manager.dart";
+import "header_anchor.dart";
 import "layout_budget.dart";
 import "render_object.dart";
 import "stick_target.dart";
@@ -114,6 +113,44 @@ class ListController extends ChangeNotifier {
   void _notifyExtentsChanged() => _extentsChangedNotifier.notify();
 
   StickTarget? _stickTarget;
+  HeaderAnchorHandle? _headerAnchor;
+  final Set<AnimateToItem> _animations = {};
+
+  bool get hasActiveHeaderAnchor => _headerAnchor?.isActive ?? false;
+
+  /// Cancels pending reveal work and package-driven animations, including work
+  /// that has reached its target but has not yet corrected estimated extents.
+  void cancelPositioning() {
+    _delegate?.cancelReveal();
+    for (final animation in _animations.toList()) {
+      animation.cancel();
+    }
+    _animations.clear();
+  }
+
+  /// Preserves a mounted descendant header's viewport Y during size changes.
+  ///
+  /// Supported for a forward, vertical, single-list viewport (including sliver
+  /// padding). Returns null for an unsupported or detached header. The caller
+  /// must stop scroll activity and cancel the handle on new user scroll input.
+  /// No off-screen items are materialized to locate the header.
+  HeaderAnchorHandle? preserveHeader(RenderBox header) {
+    cancelPositioning();
+    _headerAnchor?.cancel();
+    return _headerAnchor = _delegate?.delegate.preserveHeader(header);
+  }
+
+  /// Side-effect-free counterpart to [getOffsetToReveal]. Does not schedule a
+  /// layout correction, even when an item's extent is still an estimate.
+  double estimateOffsetToReveal(int index, double alignment, {Rect? rect}) {
+    assert(_delegate != null, "ListController is not attached.");
+    return _delegate!.getOffsetToReveal(
+      index,
+      alignment,
+      rect: rect,
+      estimationOnly: true,
+    );
+  }
 
   /// The current stick target.
   ///
@@ -166,6 +203,8 @@ class ListController extends ChangeNotifier {
     Rect? rect,
   }) {
     assert(_delegate != null, "ListController is not attached.");
+    _headerAnchor?.cancel();
+    cancelPositioning();
     final offset = getOffsetToReveal(index, alignment, rect: rect);
     if (offset.isFinite) {
       final minExtent = scrollController.position.minScrollExtent;
@@ -213,10 +252,14 @@ class ListController extends ChangeNotifier {
     Rect? rect,
   }) {
     assert(_delegate != null, "ListController is not attached.");
+    _headerAnchor?.cancel();
+    cancelPositioning();
     final items = <AnimateToItem>[];
+    final revealOwner = _delegate!.beginReveal();
     for (final position in scrollController.positions) {
       final item = AnimateToItem(
         extentManager: _delegate!,
+        revealOwner: revealOwner,
         index: index,
         alignment: alignment,
         rect: rect,
@@ -224,6 +267,8 @@ class ListController extends ChangeNotifier {
         curve: curve,
         duration: duration,
       );
+      _animations.add(item);
+      item.onDisposed = () => _animations.remove(item);
       item.animate();
       items.add(item);
     }
@@ -327,6 +372,8 @@ class ListController extends ChangeNotifier {
 
   @override
   void dispose() {
+    cancelPositioning();
+    _headerAnchor?.cancel();
     if (_delegate != null) {
       unsetDelegate(_delegate!);
     }
@@ -356,6 +403,8 @@ class ListController extends ChangeNotifier {
 
   void unsetDelegate(ExtentManager delegate) {
     if (_delegate == delegate) {
+      cancelPositioning();
+      _headerAnchor?.cancel();
       _delegate?.removeListener(notifyListeners);
       _delegate?.extentsChangedListenable.removeListener(_notifyExtentsChanged);
       _delegate = null;
@@ -369,7 +418,14 @@ class ListController extends ChangeNotifier {
   /// The [alignment] works the same as in [jumpToItem] and [animateToItem].
   /// The optional [rect] parameter describes which area of the target item
   /// should be revealed.
+  ///
+  /// This legacy API starts a reveal operation, including a later correction
+  /// for estimated extents. It replaces header anchoring and older reveal work.
+  /// Use [estimateOffsetToReveal] for a side-effect-free query, and
+  /// [cancelPositioning] if the reveal is abandoned before layout.
   double getOffsetToReveal(int index, double alignment, {Rect? rect}) {
+    _headerAnchor?.cancel();
+    cancelPositioning();
     assert(_delegate != null, "ListController is not attached.");
     return _delegate!.getOffsetToReveal(
       index,

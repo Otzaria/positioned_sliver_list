@@ -88,6 +88,7 @@ class _StickToTargetState extends State<StickToTarget> {
     }
 
     if (targetChanged) {
+      _cancelScheduledJumps();
       if (widget.target == null) {
         _userOptedOut = false;
         _setSticking(false);
@@ -196,6 +197,7 @@ class _StickToTargetState extends State<StickToTarget> {
   }
 
   void _beginInteraction() {
+    _cancelScheduledJumps();
     _interactionTimer?.cancel();
     _userIsInteracting = true;
     // Keep the logical stick state, but suspend render-object corrections.
@@ -285,7 +287,11 @@ class _StickToTargetState extends State<StickToTarget> {
   }
 
   void _onContentChanged() {
-    if (!_isSticking || _userIsInteracting) return;
+    if (!_isSticking ||
+        _userIsInteracting ||
+        widget.listController.hasActiveHeaderAnchor) {
+      return;
+    }
     final target = widget.target;
     if (target == null) return;
     if (!_targetExists(target)) {
@@ -340,7 +346,9 @@ class _StickToTargetState extends State<StickToTarget> {
     ScrollController scrollController,
     ListController listController,
   ) {
-    if (!scrollController.hasClients) return;
+    if (!scrollController.hasClients || listController.hasActiveHeaderAnchor) {
+      return;
+    }
     final target = widget.target;
     if (target == null) return;
 
@@ -354,7 +362,7 @@ class _StickToTargetState extends State<StickToTarget> {
         _setSticking(false);
         return;
       }
-      desiredOffset = listController.getOffsetToReveal(
+      desiredOffset = listController.estimateOffsetToReveal(
         target.index,
         target.alignment,
         rect: target.rect,

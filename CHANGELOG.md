@@ -1,3 +1,9 @@
+## Unreleased
+
+* Add cancellable descendant-header anchoring for forward vertical single-list viewports.
+* Add side-effect-free reveal offset estimation and cancellation for pending reveal operations.
+* Prevent canceled or replaced item animations and stick targets from applying stale corrections.
+
 ## 0.4.1
 
 * Fix missing propagation of `rect` inside `RenderViewportExt.getOffsetToRevealExt`.

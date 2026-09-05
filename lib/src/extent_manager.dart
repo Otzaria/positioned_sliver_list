@@ -1,14 +1,14 @@
-import "dart:ui";
-
 import "package:flutter/foundation.dart";
-
+import "package:flutter/rendering.dart";
 import "extent_list.dart";
+import "header_anchor.dart";
 import "stick_target.dart";
 
 abstract class ExtentManagerDelegate {
   const ExtentManagerDelegate();
 
   void onMarkNeedsLayout();
+  HeaderAnchorHandle? preserveHeader(RenderBox header) => null;
   double estimateExtentForItem(int? index);
   double getOffsetToReveal(
     int index,
@@ -73,28 +73,38 @@ class ExtentManager with ChangeNotifier {
   /// offset corrections during layout to keep the trailing edge pinned.
   StickTarget? stickTarget;
 
+  Object? revealOwner;
+
+  Object beginReveal() => revealOwner = Object();
+
+  void cancelReveal([Object? owner]) {
+    if (owner == null || identical(owner, revealOwner)) revealOwner = null;
+  }
+
   double get correctionPercentage {
     // Handle edge cases to avoid division by zero and invalid results
     if (_beforeCorrection.abs() < precisionErrorTolerance) {
       return 1.0;
     }
-    
+
     final result = _afterCorrection / _beforeCorrection;
-    
+
     // Sanity check: if result is NaN or infinite, something went wrong
     // Return 1.0 (no correction) as a safe fallback
     if (!result.isFinite) {
-      assert(false, "correctionPercentage resulted in non-finite value: "
+      assert(
+          false,
+          "correctionPercentage resulted in non-finite value: "
           "beforeCorrection=$_beforeCorrection, afterCorrection=$_afterCorrection");
       return 1.0;
     }
-    
+
     return result;
   }
 
   void setExtent(int index, double extent, {bool isEstimation = false}) {
     final oldExtent = _extentList[index];
-    // Use tolerance for comparison to avoid spurious notifications from 
+    // Use tolerance for comparison to avoid spurious notifications from
     // floating-point precision errors
     final extentChanged = (oldExtent - extent).abs() > precisionErrorTolerance;
     bool wasDirty = false;
@@ -290,7 +300,15 @@ class ExtentManager with ChangeNotifier {
     double alignment, {
     Rect? rect,
     required bool estimationOnly,
+    Object? owner,
   }) {
+    if (!estimationOnly) {
+      if (owner == null) {
+        beginReveal();
+      } else if (!identical(owner, revealOwner)) {
+        return double.nan;
+      }
+    }
     return delegate.getOffsetToReveal(
       index,
       alignment,
