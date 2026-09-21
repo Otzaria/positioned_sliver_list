@@ -1,6 +1,8 @@
 import "dart:async";
 
 import "package:flutter/gestures.dart";
+import "package:flutter/rendering.dart" show ScrollDirection;
+import "package:flutter/scheduler.dart";
 import "package:flutter/widgets.dart";
 
 import "perf_flags.dart";
@@ -9,10 +11,19 @@ import "super_sliver_list.dart";
 
 /// Keeps a [SuperSliverList] pinned to a target while its content changes.
 ///
+/// [scrollController] must be attached to at most one scrollable at a time.
+///
 /// User scrolling disengages the target. For [StickTarget.bottom], scrolling
 /// back into [threshold] re-engages it. Pointer interaction temporarily
 /// suspends corrections so widgets can expand under a tap without fighting the
 /// gesture.
+///
+/// Engagement waits without a timeout for scroll dimensions and the target
+/// item to exist. A late item can therefore cause a jump. Clear or replace
+/// [target] to cancel a stale request. While pending, drag/wheel scrolling
+/// cancels engagement, but programmatic scrolling does not. Pointer-free
+/// keyboard/semantics scrolling is indistinguishable from programmatic
+/// scrolling in this state; clear [target] if that navigation should cancel it.
 class StickToTarget extends StatefulWidget {
   const StickToTarget({
     super.key,
@@ -35,6 +46,8 @@ class StickToTarget extends StatefulWidget {
   State<StickToTarget> createState() => _StickToTargetState();
 }
 
+enum _PendingEngagement { silent, notifying }
+
 class _StickToTargetState extends State<StickToTarget> {
   static const _interactionGrace = Duration(milliseconds: 500);
   static const _precisionErrorTolerance = 0.001;
@@ -46,6 +59,11 @@ class _StickToTargetState extends State<StickToTarget> {
   final Set<int> _activePointers = <int>{};
   Timer? _interactionTimer;
   int _jumpGeneration = 0;
+  // A controller can attach before its viewport reports any dimensions.
+  // Keep engagement pending until metrics (and item data) become available.
+  _PendingEngagement? _pendingEngagement = _PendingEngagement.silent;
+  bool get _needsEngagement => _pendingEngagement != null;
+  bool _contentChangeScheduled = false;
 
   @override
   void initState() {
@@ -53,7 +71,7 @@ class _StickToTargetState extends State<StickToTarget> {
     _contentListenable(widget.listController).addListener(_onContentChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _evaluateInitialPosition();
+      _evaluatePendingEngagement();
     });
   }
 
@@ -79,16 +97,18 @@ class _StickToTargetState extends State<StickToTarget> {
       _cancelScheduledJumps();
       _isSticking = false;
       _userOptedOut = false;
+      _pendingEngagement = _PendingEngagement.silent;
       oldWidget.listController.stickTarget = null;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        _evaluateInitialPosition();
+        _evaluatePendingEngagement();
       });
       return;
     }
 
     if (targetChanged) {
       _cancelScheduledJumps();
+      _pendingEngagement = null;
       if (widget.target == null) {
         _userOptedOut = false;
         _setSticking(false);
@@ -101,14 +121,13 @@ class _StickToTargetState extends State<StickToTarget> {
         widget.listController.stickTarget = widget.target;
         _syncRenderTarget();
         _scheduleJumpToTarget();
-      } else if (!_userOptedOut && _shouldEngageTarget()) {
-        _setSticking(true);
-        _scheduleJumpToTarget();
-      } else if (!_userOptedOut && !widget.target!.isBottom) {
-        // A newly appended item is not reflected in ListController until the
-        // sliver has processed this build. Retry after layout instead of
-        // permanently missing the target transition.
-        _scheduleTargetEngagementAfterLayout(widget.target!);
+      } else if (!_userOptedOut) {
+        _pendingEngagement = _PendingEngagement.notifying;
+        _evaluatePendingEngagement();
+        if (_needsEngagement) {
+          // The new item or scroll dimensions may not exist until layout.
+          _scheduleTargetEngagementAfterLayout(widget.target!);
+        }
       }
     } else if (listControllerChanged) {
       widget.listController.stickTarget = _isSticking ? widget.target : null;
@@ -135,30 +154,51 @@ class _StickToTargetState extends State<StickToTarget> {
           ? controller.extentsChangedListenable
           : controller;
 
-  void _evaluateInitialPosition() {
-    if (!widget.scrollController.hasClients) {
-      _setSticking(false, notify: false);
+  ScrollPosition? _readyPosition(ScrollController controller) {
+    assert(controller.positions.length <= 1,
+        "StickToTarget requires a ScrollController with at most one position.");
+    if (controller.positions.length != 1) return null;
+    final position = controller.position;
+    if (!position.hasPixels ||
+        !position.hasViewportDimension ||
+        !position.hasContentDimensions) {
+      return null;
+    }
+    return position;
+  }
+
+  void _evaluatePendingEngagement() {
+    if (!_needsEngagement || _userOptedOut || _userIsInteracting) return;
+    final target = widget.target;
+    if (target != null &&
+        (_readyPosition(widget.scrollController) == null ||
+            !_targetExists(target))) {
       return;
     }
-    _userOptedOut = false;
-    _setSticking(_shouldEngageTarget(), notify: false);
+    final notify = _pendingEngagement == _PendingEngagement.notifying;
+    _pendingEngagement = null;
+    _setSticking(_shouldEngageTarget(), notify: notify);
     if (_isSticking) _scheduleJumpToTarget();
   }
 
   bool _shouldEngageTarget() {
     final target = widget.target;
-    if (target == null || !widget.scrollController.hasClients) return false;
+    if (target == null || _readyPosition(widget.scrollController) == null) {
+      return false;
+    }
     if (target.isBottom) return _isAtBottom();
     return _targetExists(target);
   }
 
   bool _targetExists(StickTarget target) =>
       target.isBottom ||
-      (target.index >= 0 && target.index < widget.listController.numberOfItems);
+      (widget.listController.isAttached &&
+          target.index >= 0 &&
+          target.index < widget.listController.numberOfItems);
 
   bool _isAtBottom() {
-    if (!widget.scrollController.hasClients) return false;
-    final position = widget.scrollController.position;
+    final position = _readyPosition(widget.scrollController);
+    if (position == null) return false;
     return (_bottomOffset(position) - position.pixels).abs() <=
         widget.threshold;
   }
@@ -180,12 +220,11 @@ class _StickToTargetState extends State<StickToTarget> {
   }
 
   void _syncRenderTarget() {
-    final position = widget.scrollController.hasClients
-        ? widget.scrollController.position
-        : null;
+    final position = _readyPosition(widget.scrollController);
     final renderTarget = _isSticking &&
             !_userIsInteracting &&
-            position?.axisDirection != AxisDirection.up
+            position != null &&
+            position.axisDirection != AxisDirection.up
         ? widget.target
         : null;
     widget.listController.renderStickTarget = renderTarget;
@@ -193,6 +232,7 @@ class _StickToTargetState extends State<StickToTarget> {
 
   void _optOutFromUserScroll() {
     _userOptedOut = true;
+    _pendingEngagement = null;
     _setSticking(false);
   }
 
@@ -212,6 +252,7 @@ class _StickToTargetState extends State<StickToTarget> {
   void _finishInteraction() {
     if (!mounted || _activePointers.isNotEmpty) return;
     _userIsInteracting = false;
+    _evaluatePendingEngagement();
 
     // Only bottom sticking can be regained by user scrolling. Item targets
     // remain opted out until their owner explicitly supplies a fresh state.
@@ -263,8 +304,18 @@ class _StickToTargetState extends State<StickToTarget> {
 
     if (notification is ScrollStartNotification) {
       _beginInteraction();
+    } else if (notification is UserScrollNotification &&
+        notification.direction != ScrollDirection.idle &&
+        _needsEngagement &&
+        !_isChangingScrollOffset) {
+      // Includes wheel input, which has neither a drag nor an active pointer.
+      // jumpTo/animateTo do not emit a non-idle user scroll direction.
+      _optOutFromUserScroll();
     } else if (notification is ScrollUpdateNotification) {
-      if (!_isChangingScrollOffset && _isSticking) {
+      final userDrag =
+          notification.dragDetails != null || _activePointers.isNotEmpty;
+      if (!_isChangingScrollOffset &&
+          (_isSticking || (_needsEngagement && userDrag))) {
         _optOutFromUserScroll();
       }
     } else if (notification is ScrollEndNotification) {
@@ -280,15 +331,38 @@ class _StickToTargetState extends State<StickToTarget> {
   bool get _interactionTimerIsActive => _interactionTimer?.isActive ?? false;
 
   bool _onMetricsNotification(ScrollMetricsNotification notification) {
-    if (notification.depth == 0 && _isSticking && !_userIsInteracting) {
+    if (notification.depth != 0) return false;
+    _evaluatePendingEngagement();
+    if (_isSticking && !_userIsInteracting) {
+      _syncRenderTarget();
       _scheduleJumpToTarget();
     }
     return false;
   }
 
   void _onContentChanged() {
+    // ListController notifies synchronously from layout. Both engagement and
+    // target removal can call a consumer that rebuilds its UI. Coalesce the
+    // work until after layout and evaluate the current target/controllers then,
+    // rather than capturing a request that may have been cancelled meanwhile.
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      if (_contentChangeScheduled) return;
+      _contentChangeScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _contentChangeScheduled = false;
+        if (mounted) _handleContentChanged();
+      });
+      return;
+    }
+    _handleContentChanged();
+  }
+
+  void _handleContentChanged() {
+    _evaluatePendingEngagement();
     if (!_isSticking ||
         _userIsInteracting ||
+        !widget.listController.isAttached ||
         widget.listController.hasActiveHeaderAnchor) {
       return;
     }
@@ -316,12 +390,10 @@ class _StickToTargetState extends State<StickToTarget> {
           generation != _jumpGeneration ||
           widget.target != target ||
           _isSticking ||
-          _userOptedOut ||
-          !_shouldEngageTarget()) {
+          _userOptedOut) {
         return;
       }
-      _setSticking(true);
-      _scheduleJumpToTarget();
+      _evaluatePendingEngagement();
     });
   }
 
@@ -340,23 +412,28 @@ class _StickToTargetState extends State<StickToTarget> {
       }
       _jumpToTarget(scrollController, listController);
     });
+    // Engagement can now resolve in a post-frame content callback without a
+    // metrics change. addPostFrameCallback alone would not request the next
+    // frame, so its jump could otherwise wait indefinitely.
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   void _jumpToTarget(
     ScrollController scrollController,
     ListController listController,
   ) {
-    if (!scrollController.hasClients || listController.hasActiveHeaderAnchor) {
+    final position = _readyPosition(scrollController);
+    if (position == null || listController.hasActiveHeaderAnchor) {
       return;
     }
     final target = widget.target;
     if (target == null) return;
 
-    final position = scrollController.position;
     late final double desiredOffset;
     if (target.isBottom) {
       desiredOffset = _bottomOffset(position);
     } else {
+      if (!listController.isAttached) return;
       if (!_targetExists(target)) {
         _userOptedOut = true;
         _setSticking(false);

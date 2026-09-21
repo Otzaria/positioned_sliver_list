@@ -271,17 +271,11 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
         _headerViewportY;
     // Read padding itself, not maxScrollExtent: a short list reports zero max
     // and cannot distinguish trailing padding from unused viewport space.
-    var trailingPadding = 0.0;
-    for (var object = parent;
-        object is RenderSliverPadding;
-        object = object.parent) {
-      trailingPadding += object.afterPadding;
-    }
     final maxOffset = math.max(
         position.minScrollExtent,
         constraints.precedingScrollExtent +
             _totalExtent() +
-            trailingPadding -
+            _trailingPaddingExtent() -
             constraints.viewportMainAxisExtent);
     return desired.clamp(position.minScrollExtent, maxOffset) - position.pixels;
   }
@@ -781,6 +775,76 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
   String get _logIdentifier =>
       identityHashCode(this).toRadixString(16).padLeft(8, "0");
 
+  double _trailingPaddingExtent() {
+    var extent = 0.0;
+    RenderObject child = this;
+    for (var object = parent; object is RenderSliver; object = object.parent) {
+      if (object is RenderSliverMainAxisGroup) {
+        // Outer padding belongs to this list's end only if no sibling follows
+        // its branch in the group's growth direction. Still include padding
+        // inside that branch, and cross groups where the branch is last.
+        final trailingChild =
+            object.constraints.growthDirection == GrowthDirection.forward
+                ? object.lastChild
+                : object.firstChild;
+        if (child != trailingChild) break;
+      }
+      if (object is RenderSliverEdgeInsetsPadding) {
+        extent += object.afterPadding;
+      }
+      child = object;
+    }
+    return extent;
+  }
+
+  double _initialEndCorrection(double extent) {
+    final viewportExtent = constraints.viewportMainAxisExtent;
+    if (!viewportExtent.isFinite || viewportExtent <= 0) return 0;
+    if (constraints.growthDirection == GrowthDirection.reverse) {
+      // Preserve positioning at the center for slivers before the viewport's
+      // center. This is distinct from a list with reverse: true.
+      // The local target is zero here: padding clamping to zero already
+      // satisfies it, so it cannot repeat the positive correction that caused
+      // the forward-growth padding loop. This preserves the existing policy;
+      // it does not try to consume the padding on the center side.
+      return -constraints.scrollOffset;
+    }
+
+    final viewport = getViewport()!;
+
+    // SliverPadding clamps the child's scrollOffset to zero while its leading
+    // padding is visible. Compare viewport coordinates instead, so a small
+    // overflow consumes that padding in one correction. precedingScrollExtent
+    // already includes leading padding and preceding slivers, but not trailing
+    // padding. Neither scroll extent is available on ScrollPosition yet.
+    final centerOrigin = viewport is RenderViewport
+        ? viewportExtent * viewport.anchor -
+            viewport.center!.centerOffsetAdjustment
+        : 0.0;
+    final targetOffset = math.max(
+      0.0,
+      centerOrigin +
+          constraints.precedingScrollExtent +
+          extent +
+          _trailingPaddingExtent() -
+          viewportExtent,
+    );
+    return targetOffset - viewport.offset.pixels;
+  }
+
+  bool _applyInitialEndCorrection(double extent, LayoutPass pass) {
+    final correction = _initialEndCorrection(extent);
+    if (correction.abs() > precisionErrorTolerance) {
+      // TODO: enforce a shared correction budget with a valid-layout fallback
+      // that preserves pending initial positioning, rather than dropping it.
+      ++pass.correctionCount;
+      geometry = SliverGeometry(scrollOffsetCorrection: correction);
+      childManager.didFinishLayout();
+      return true;
+    }
+    return false;
+  }
+
   void _performLayoutInner() {
     if (_childScrollOffsetEstimation?.owner != _extentManager.revealOwner) {
       _childScrollOffsetEstimation = null;
@@ -836,21 +900,9 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
 
     if (!_didResolveInitialScrollPosition &&
         _initialScrollPosition == InitialScrollPosition.end &&
-        totalChildCount > 0) {
-      final viewportExtent = constraints.viewportMainAxisExtent;
-      if (viewportExtent.isFinite && viewportExtent > 0) {
-        final targetOffset =
-            constraints.growthDirection == GrowthDirection.reverse
-                ? 0.0
-                : math.max(0.0, initialExtent - viewportExtent);
-        final correction = targetOffset - constraints.scrollOffset;
-        if (correction.abs() > precisionErrorTolerance) {
-          ++layoutPass.correctionCount;
-          geometry = SliverGeometry(scrollOffsetCorrection: correction);
-          childManager.didFinishLayout();
-          return;
-        }
-      }
+        totalChildCount > 0 &&
+        _applyInitialEndCorrection(initialExtent, layoutPass)) {
+      return;
     }
 
     // Viewport is not at the beginning.
@@ -1525,20 +1577,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     if (!_didResolveInitialScrollPosition &&
         _initialScrollPosition == InitialScrollPosition.end &&
         totalChildCount > 0) {
-      final viewportExtent = constraints.viewportMainAxisExtent;
-      if (viewportExtent.isFinite && viewportExtent > 0) {
-        final targetOffset =
-            constraints.growthDirection == GrowthDirection.reverse
-                ? 0.0
-                : math.max(0.0, endScrollOffset - viewportExtent);
-        final correction = targetOffset - constraints.scrollOffset;
-        if (correction.abs() > precisionErrorTolerance) {
-          ++layoutPass.correctionCount;
-          geometry = SliverGeometry(scrollOffsetCorrection: correction);
-          childManager.didFinishLayout();
-          return;
-        }
-      }
+      if (_applyInitialEndCorrection(endScrollOffset, layoutPass)) return;
       _didResolveInitialScrollPosition = true;
     }
     final cacheStart = constraints.scrollOffset + constraints.cacheOrigin;

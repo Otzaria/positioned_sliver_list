@@ -4,6 +4,55 @@ import "package:flutter_test/flutter_test.dart";
 import "package:super_sliver_list/super_sliver_list.dart";
 
 void main() {
+  testWidgets("header anchor includes nested trailing padding", (tester) async {
+    final scroll = ScrollController();
+    final list = ListController();
+    final height = ValueNotifier(100.0);
+    final header = GlobalKey();
+    addTearDown(scroll.dispose);
+    addTearDown(list.dispose);
+    addTearDown(height.dispose);
+    await tester.pumpWidget(MaterialApp(
+      home: CustomScrollView(
+        controller: scroll,
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.only(top: 20, bottom: 200),
+            sliver: SliverPadding(
+              padding: const EdgeInsets.only(bottom: 300),
+              sliver: SuperSliverList.list(
+                listController: list,
+                initialScrollPosition: InitialScrollPosition.end,
+                children: [
+                  ValueListenableBuilder<double>(
+                    valueListenable: height,
+                    builder: (_, value, child) => Column(
+                      children: [SizedBox(height: value), child!],
+                    ),
+                    child: SizedBox(key: header, height: 50),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(scroll.offset, 70);
+    final before = tester.getTopLeft(find.byKey(header)).dy;
+    final handle = list.preserveHeader(
+        header.currentContext!.findRenderObject()! as RenderBox)!;
+    height.value = 150;
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(scroll.offset, 120);
+    expect(tester.getTopLeft(find.byKey(header)).dy, closeTo(before, 0.001));
+    expect(scroll.position.outOfRange, isFalse);
+    handle.cancel();
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets("an explicit reveal replaces the header anchor", (tester) async {
     final scroll = ScrollController();
     final list = ListController();
