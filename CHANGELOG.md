@@ -1,11 +1,32 @@
 ## 0.1.0
 
-* First release as `positioned_sliver_list`, a fork of `super_sliver_list` 0.4.1
-  that includes the fixes from the Telosnex and ahey forks.
+First release as `positioned_sliver_list`, a fork of `super_sliver_list` 0.4.1.
 
-* Add cancellable descendant-header anchoring for forward vertical single-list viewports.
-* Add side-effect-free reveal offset estimation and cancellation for pending reveal operations.
-* Prevent canceled or replaced item animations and stick targets from applying stale corrections.
+* `ListController.jumpToIndex` and `ListController.scrollToIndex` place an item's
+  leading edge at a fraction of the viewport plus an offset. Jumps are resolved
+  exactly during layout, before paint, and build only the items around the
+  target. Long animations jump near the target first and run as a cancelable
+  scroll activity.
+* `ListController.animateToItem` returns an `AnimationHandle` that is also a
+  `Future<void>`, and no longer jumps through every item on the way.
+* `SuperSliverList.initialIndex`, `initialAlignment` and `initialOffset` position
+  the list before the first paint.
+* `ListController.itemPositions` publishes the visible items after layout, and
+  `ListController.anchor` reports the item at the viewport's leading edge.
+* The item at the viewport's leading edge keeps its position when items above it
+  change extent, and keeps its scrolled-past fraction when the width changes.
+* A controller briefly attached to two lists keeps the newest one.
+* `package:positioned_sliver_list/positioned_list.dart`: a replacement for the
+  `scrollable_positioned_list` API.
+* `SuperListView` takes `scrollCacheExtent` instead of the deprecated
+  `cacheExtent`. Requires Flutter 3.44.
+* Includes the Telosnex fork (initial end position, cancelable reveal
+  operations, public `getOffsetToReveal`, `StickToTarget`, header anchoring,
+  leak fixes, a cap on scroll correction cycles, performance work) and the ahey
+  fix for slivers that stopped laying out after a scroll correction, limited to
+  the sliver's viewport.
+
+## super_sliver_list history
 
 ## 0.4.1
 

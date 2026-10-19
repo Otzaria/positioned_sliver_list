@@ -1,10 +1,18 @@
 # positioned_sliver_list
 
-A fork of [super_sliver_list](https://pub.dev/packages/super_sliver_list) (MIT) maintained by the Otzaria contributors. It is not affiliated with or endorsed by the original authors.
+A fork of [super_sliver_list](https://pub.dev/packages/super_sliver_list) (MIT) maintained by the Otzaria contributors. It is not affiliated with or endorsed by the authors of `super_sliver_list` or of `scrollable_positioned_list`.
+
+On top of `super_sliver_list` it adds:
+
+- exact jumps by index that are resolved during layout, before paint, and build only the items around the target, even when the extents in between are only estimated;
+- animated scrolling to an index that returns a `Future`, can be canceled, and never builds the items in between;
+- an initial index applied before the first frame;
+- item positions published after layout, and scroll anchoring that keeps the item at the top of the viewport in place when items above it change extent or the width changes;
+- [`package:positioned_sliver_list/positioned_list.dart`](#scrollable_positioned_list-compatibility), a replacement for the `scrollable_positioned_list` API with a real `ScrollController`.
+
+The fixes from the Telosnex and ahey forks of `super_sliver_list` are included.
 
 ## SliverList and ListView - Supercharged
-
-> See the [live example](https://superlistapp.github.io/super_sliver_list/#/) of `SuperSliverList`.
 
 `SuperSliverList` and `SuperListView` are drop in replacement widgets for `SliverList` and `ListView` with greatly improved performance and additional features:
 
@@ -99,6 +107,69 @@ class _MyState extends State<MyWidget> {
 }
 ```
 
+## Index based positioning
+
+`jumpToIndex` and `scrollToIndex` place the *leading edge* of an item at a fraction of the viewport (`alignment`: 0 is the leading edge, 0.5 the center, 1 the trailing edge, negative values allowed) plus `offset` pixels. They need no `ScrollController`:
+
+```dart
+// Exact, before the next paint. Completes after that layout.
+await listController.jumpToIndex(12000, alignment: 0.2);
+
+// Jumps to about one viewport before a distant item, then animates the rest.
+// The handle is a Future and can be canceled; a drag cancels it too.
+final handle = listController.scrollToIndex(
+  40000,
+  duration: const Duration(milliseconds: 400),
+  curve: Curves.easeOut,
+);
+await handle;
+```
+
+`SuperSliverList(initialIndex: ..., initialAlignment: ..., initialOffset: ...)` applies such a position during the first layout.
+
+`listController.itemPositions` is a `ValueListenable<List<ItemPosition>>` with the visible items and their leading and trailing edges as fractions of the viewport, updated after every frame in which they changed (only while it has listeners). `listController.anchor` is the first visible item and how far the viewport edge is inside it; `jumpToIndex(anchor.index, offset: -anchor.offsetInItem)` restores it.
+
+`animateToItem` keeps its `getOffsetToReveal` alignment and now returns an `AnimationHandle`, which is also a `Future<void>`.
+
+## scrollable_positioned_list compatibility
+
+`package:positioned_sliver_list/positioned_list.dart` provides `ScrollablePositionedList` (`.builder`, `.separated`), `ItemScrollController`, `ItemPositionsListener`, `ItemPosition`, `ScrollOffsetController` and `ScrollOffsetListener` with the API of `scrollable_positioned_list`, implemented as one `CustomScrollView` around a `SuperSliverList`:
+
+```dart
+import 'package:positioned_sliver_list/positioned_list.dart';
+
+final itemScrollController = ItemScrollController();
+final itemPositionsListener = ItemPositionsListener.create();
+final scrollController = ScrollController();
+
+Scrollbar(
+  controller: scrollController,
+  child: ScrollablePositionedList.builder(
+    itemCount: paragraphs.length,
+    itemBuilder: (context, index) => Paragraph(paragraphs[index]),
+    itemScrollController: itemScrollController,
+    itemPositionsListener: itemPositionsListener,
+    scrollController: scrollController, // optional
+    estimateExtent: (index, width) => paragraphs[index].length * 900 / width,
+    initialScrollIndex: 120,
+  ),
+);
+
+itemScrollController.jumpTo(index: 500, alignment: 0.1);
+await itemScrollController.scrollTo(index: 9000, duration: const Duration(milliseconds: 500));
+```
+
+Additions to the original API: `scrollController`, `estimateExtent`, `estimatedSeparatorExtent`, `initialOffset`, `restorePosition`, an `offset` for `jumpTo`/`scrollTo`, `ItemScrollController.scrollController`/`listController`/`anchor`, and `ScrollOffsetController.jumpBy`/`isAttached`.
+
+Behavior that differs from `scrollable_positioned_list`:
+
+- There is a single list. `scrollTo` to a distant item jumps to about one viewport before it and animates from there; there is no cross-fade, and `opacityAnimationWeights` is ignored. The trajectory of the animation therefore differs.
+- Positions are clamped to the scroll range: the last items cannot be moved to the top of the viewport, and an `initialAlignment` above zero cannot leave empty space before the first item.
+- Saving the position to `PageStorage` is opt-in (`restorePosition: true`).
+- The cache area around a jump target is filled one frame after the jump.
+- `ScrollOffsetListener` reports scroll movements only; layout corrections (exact landing, anchoring) are not reported.
+- `jumpToDistantItems` is accepted and ignored.
+
 ## Advanced
 
 Very roughtly speaking `SuperSliverList` works by estimating the extent of items that are outside of viewport and when these items are scrolled into the viewport cache area the scroll position is transparently adjusted to account of the difference between estimated and actual extents. On small lists this difference may result in scrollbar movement not being perfectly aligned with list movement. `SuperSliverList` provides two ways to rectify this:
@@ -110,7 +181,9 @@ You can register custom callback that will be used to estimate extent of estimat
 ```dart
 SuperSliverList(
     delegate: /*...*/,
-    estimateExtent: (index) => 100.0, // Provide your own extent estimation
+    // Called with a null index first: return a positive value if all items
+    // have the same estimate, or 0 to be asked for each index.
+    extentEstimation: (index, crossAxisExtent) => 100.0,
 )
 ```
 
@@ -138,4 +211,4 @@ The threshold is arbitrary, but in general there are diminishing returns for pre
 
 ## Example
 
-See the [example](example) folder for a complete sample app using `SuperSliverList`. You can also see the [example deployed live](https://superlistapp.github.io/super_sliver_list/).
+See the [example](example) folder for a complete sample app using `SuperSliverList`.
