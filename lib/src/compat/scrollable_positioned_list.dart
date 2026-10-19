@@ -556,9 +556,17 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
     if (viewport <= 0) {
       return;
     }
+    // A forced update reads the current layout: the published value may
+    // predate it, and a stale one would overwrite fresher positions.
+    final current = force
+        ? _listController.computeItemPositions()
+        : _listController.itemPositions.value;
+    if (current == null) {
+      return;
+    }
     final separated = widget._separated;
     final positions = <ItemPosition>[];
-    for (final position in _listController.itemPositions.value) {
+    for (final position in current) {
       var index = position.index;
       if (separated) {
         if (index.isOdd) {

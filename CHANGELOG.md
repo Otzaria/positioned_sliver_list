@@ -18,10 +18,13 @@ First release as `positioned_sliver_list`, a fork of `super_sliver_list` 0.4.1.
   target lands exactly (`always`), for example the last item at the top of
   the viewport. That space shrinks as the user scrolls back and is used up by
   appended items; `ListController.overscrollSpace` reports it.
-* `ListController.itemPositions` publishes the visible items after layout, and
+* `ListController.itemPositions` publishes the visible items after layout,
+  never from a layout older than the scroll offset;
+  `ListController.computeItemPositions` reads them on demand, and
   `ListController.anchor` reports the item at the viewport's leading edge.
 * The item at the viewport's leading edge keeps its position when items above it
-  change extent, and keeps its scrolled-past fraction when the width changes.
+  change extent or the leading padding changes, and keeps its scrolled-past
+  fraction when the width changes.
 * A controller briefly attached to two lists keeps the newest one.
 * `package:positioned_sliver_list/positioned_list.dart`: a replacement for the
   `scrollable_positioned_list` API.

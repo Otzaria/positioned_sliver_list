@@ -298,6 +298,12 @@ class ListController extends ChangeNotifier {
   /// while this has listeners.
   ValueListenable<List<ItemPosition>> get itemPositions => _itemPositions;
 
+  /// Positions of the visible items as currently laid out, without waiting
+  /// for [itemPositions]. Null when no list is attached or when the viewport
+  /// scrolled after the last layout; the next layout then publishes them.
+  List<ItemPosition>? computeItemPositions() =>
+      _delegate?.delegate.computeItemPositions();
+
   /// The first visible item and how far the viewport's leading edge is inside
   /// it. Pass `-anchor.offsetInItem` as the offset of [jumpToIndex] to restore
   /// it.

@@ -78,7 +78,7 @@ class SuperSliverMultiBoxAdaptorElement extends SliverMultiBoxAdaptorElement
       _hasRenderObject ? renderObject.currentAnchor : null;
 
   @override
-  List<ItemPosition> computeItemPositions() =>
+  List<ItemPosition>? computeItemPositions() =>
       _hasRenderObject ? renderObject.computeItemPositions() : const [];
 
   @override

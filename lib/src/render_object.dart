@@ -259,6 +259,24 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
   // coordinates; everything outside layout sees them shifted by this amount.
   double _leadingSpace = 0.0;
 
+  // State of the last completed layout, to tell a change of the leading
+  // padding around this sliver from a scroll.
+  ({double pixels, double padding, double scrollOffset})? _lastOuterLayout;
+
+  double get _leadingPadding {
+    final parent = this.parent;
+    return parent is RenderSliverEdgeInsetsPadding ? parent.beforePadding : 0.0;
+  }
+
+  // Viewport scroll offset of the last layout; positions read from the render
+  // tree after a later scroll are stale until the next layout.
+  double? _layoutPixels;
+
+  double? get _viewportPixels {
+    final offset = getViewport()?.offset;
+    return offset != null && offset.hasPixels ? offset.pixels : null;
+  }
+
   // Blank space after the last item, part of this sliver's scroll extent.
   double _trailingSpace = 0.0;
 
@@ -1290,11 +1308,15 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
   }
 
   /// Positions of the items that are at least partially visible, in index
-  /// order. Cost is proportional to the number of laid out children.
-  List<ItemPosition> computeItemPositions() {
+  /// order, or null when the viewport scrolled after the last layout. Cost is
+  /// proportional to the number of laid out children.
+  List<ItemPosition>? computeItemPositions() {
     final viewport = getViewport();
     if (!attached || viewport == null || !viewport.hasSize) {
       return const [];
+    }
+    if (_viewportPixels != _layoutPixels) {
+      return null;
     }
     final axisDirection = applyGrowthDirectionToAxisDirection(
       constraints.axisDirection,
@@ -1361,7 +1383,11 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       if (!attached || sink == null) {
         return;
       }
-      sink.updateItemPositions(computeItemPositions());
+      // When stale, the pending layout schedules a fresh update.
+      final positions = computeItemPositions();
+      if (positions != null) {
+        sink.updateItemPositions(positions);
+      }
     });
   }
 
@@ -1388,6 +1414,11 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       _leadingSpace = 0.0;
       _reservedLeadingSpace = 0.0;
       _trailingSpace = 0.0;
+    }
+    final shift = _leadingPaddingShift(outer);
+    if (shift != 0.0) {
+      geometry = SliverGeometry(scrollOffsetCorrection: shift);
+      return;
     }
     if (_leadingSpace > 0 || _reservedLeadingSpace > 0) {
       final correction = _updateLeadingSpace(outer);
@@ -1423,7 +1454,32 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     if (_leadingSpace == 0 && _trailingSpace == 0) {
       _pinnedIndex = null;
     }
+    final pixels = _viewportPixels;
+    _lastOuterLayout =
+        pixels == null || geometry!.scrollOffsetCorrection != null
+        ? null
+        : (
+            pixels: pixels,
+            padding: _leadingPadding,
+            scrollOffset: outer.scrollOffset,
+          );
     _scheduleItemPositionsUpdate();
+  }
+
+  /// Scroll correction that keeps the visible content in place when the
+  /// leading padding around this sliver changed while the viewport is
+  /// scrolled into the list.
+  double _leadingPaddingShift(SliverConstraints outer) {
+    final last = _lastOuterLayout;
+    if (last == null ||
+        last.scrollOffset <= 0 ||
+        hasPendingTarget ||
+        outer.growthDirection != GrowthDirection.forward ||
+        _viewportPixels != last.pixels) {
+      return 0.0;
+    }
+    final shift = _leadingPadding - last.padding;
+    return shift.abs() > precisionErrorTolerance ? shift : 0.0;
   }
 
   /// Applies a reserved leading space, or shrinks the leading space by the
@@ -1467,6 +1523,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
   @override
   void layout(Constraints constraints, {bool parentUsesSize = false}) {
     super.layout(constraints, parentUsesSize: parentUsesSize);
+    _layoutPixels = _viewportPixels;
     // It is possible that after requesting scroll offset correction the
     // constraints during next layout call are same as before, which will skip
     // performLayout meaning the scrollCorrection gets stuck and viewport will
