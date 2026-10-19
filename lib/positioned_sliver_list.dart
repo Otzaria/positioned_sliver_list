@@ -1,5 +1,6 @@
 export "src/extent_manager.dart" show ItemRange;
 export "src/header_anchor.dart";
+export "src/item_position.dart";
 export "src/layout_budget.dart";
 export "src/list_view.dart";
 export "src/perf_flags.dart";

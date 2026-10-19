@@ -3,6 +3,8 @@ import "package:flutter/widgets.dart";
 
 import "extent_manager.dart";
 import "header_anchor.dart";
+import "item_position.dart";
+import "layout_pass.dart";
 import "render_object.dart";
 import "super_sliver_list.dart";
 
@@ -47,6 +49,57 @@ class SuperSliverMultiBoxAdaptorElement extends SliverMultiBoxAdaptorElement
   @override
   HeaderAnchorHandle? preserveHeader(RenderBox header) =>
       renderObject.preserveHeader(header);
+
+  // The list controller is attached before the render object exists.
+  bool _hasRenderObject = false;
+
+  @override
+  void mount(Element? parent, Object? newSlot) {
+    super.mount(parent, newSlot);
+    _hasRenderObject = true;
+  }
+
+  @override
+  Future<void> jumpToIndex(int index, double alignment, double offset) {
+    if (!_hasRenderObject) {
+      return Future<void>.value();
+    }
+    return renderObject.jumpToIndex(index, alignment, offset);
+  }
+
+  @override
+  double? pixelsForIndex(int index, double alignment, double offset) =>
+      _hasRenderObject
+      ? renderObject.pixelsForIndex(index, alignment, offset)
+      : null;
+
+  @override
+  ListAnchor? get currentAnchor =>
+      _hasRenderObject ? renderObject.currentAnchor : null;
+
+  @override
+  List<ItemPosition> computeItemPositions() =>
+      _hasRenderObject ? renderObject.computeItemPositions() : const [];
+
+  @override
+  void requestItemPositions() {
+    if (_hasRenderObject) {
+      renderObject.requestItemPositions();
+    }
+  }
+
+  @override
+  bool get hasPendingTarget =>
+      _hasRenderObject && renderObject.hasPendingTarget;
+
+  @override
+  ScrollPosition? get scrollPosition {
+    if (!_hasRenderObject) {
+      return null;
+    }
+    final offset = renderObject.getViewport()?.offset;
+    return offset is ScrollPosition ? offset : null;
+  }
 
   @override
   double estimateExtentForItem(int? index) {
@@ -101,6 +154,7 @@ class SuperSliverMultiBoxAdaptorElement extends SliverMultiBoxAdaptorElement
 
   @override
   void unmount() {
+    _hasRenderObject = false;
     _currentController?.unsetDelegate(_extentManager);
     _currentController = null;
     _extentManager.dispose();

@@ -39,6 +39,9 @@ class SuperListView extends BoxScrollView {
     this.extentPrecalculationPolicy,
     this.delayPopulatingCacheArea = false,
     this.initialScrollPosition = InitialScrollPosition.start,
+    this.initialIndex,
+    this.initialAlignment = 0.0,
+    this.initialOffset = 0.0,
   }) : childrenDelegate = SliverChildListDelegate(
          children,
          addAutomaticKeepAlives: addAutomaticKeepAlives,
@@ -76,6 +79,9 @@ class SuperListView extends BoxScrollView {
     this.extentPrecalculationPolicy,
     this.delayPopulatingCacheArea = false,
     this.initialScrollPosition = InitialScrollPosition.start,
+    this.initialIndex,
+    this.initialAlignment = 0.0,
+    this.initialOffset = 0.0,
   }) : assert(itemCount == null || itemCount >= 0),
        assert(semanticChildCount == null || semanticChildCount <= itemCount!),
        childrenDelegate = SliverChildBuilderDelegate(
@@ -117,6 +123,9 @@ class SuperListView extends BoxScrollView {
     this.extentPrecalculationPolicy,
     this.delayPopulatingCacheArea = false,
     this.initialScrollPosition = InitialScrollPosition.start,
+    this.initialIndex,
+    this.initialAlignment = 0.0,
+    this.initialOffset = 0.0,
   }) : assert(itemCount >= 0),
        childrenDelegate = SliverChildBuilderDelegate(
          (BuildContext context, int index) {
@@ -161,6 +170,9 @@ class SuperListView extends BoxScrollView {
     this.extentPrecalculationPolicy,
     this.delayPopulatingCacheArea = false,
     this.initialScrollPosition = InitialScrollPosition.start,
+    this.initialIndex,
+    this.initialAlignment = 0.0,
+    this.initialOffset = 0.0,
   });
 
   /// A delegate that provides the children for the [ListView].
@@ -200,6 +212,19 @@ class SuperListView extends BoxScrollView {
   /// Where the list should begin when it is laid out for the first time.
   final InitialScrollPosition initialScrollPosition;
 
+  /// Index of the item whose leading edge is placed at [initialAlignment] of
+  /// the viewport plus [initialOffset] pixels when the list is laid out for
+  /// the first time. Applied before the first paint; later changes are
+  /// ignored. Takes precedence over [initialScrollPosition].
+  final int? initialIndex;
+
+  /// Fraction of the viewport where the leading edge of the item at
+  /// [initialIndex] is placed. 0 is the leading edge, 1 the trailing edge.
+  final double initialAlignment;
+
+  /// Pixels added to [initialAlignment].
+  final double initialOffset;
+
   @override
   Widget buildChildLayout(BuildContext context) {
     return SuperSliverList(
@@ -209,6 +234,9 @@ class SuperListView extends BoxScrollView {
       extentEstimation: extentEstimation,
       extentPrecalculationPolicy: extentPrecalculationPolicy,
       initialScrollPosition: initialScrollPosition,
+      initialIndex: initialIndex,
+      initialAlignment: initialAlignment,
+      initialOffset: initialOffset,
     );
   }
 

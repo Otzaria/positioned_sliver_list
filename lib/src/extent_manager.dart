@@ -1,7 +1,9 @@
 import "package:flutter/foundation.dart";
 import "package:flutter/rendering.dart";
+import "package:flutter/widgets.dart" show ScrollPosition;
 import "extent_list.dart";
 import "header_anchor.dart";
+import "item_position.dart";
 import "stick_target.dart";
 
 abstract class ExtentManagerDelegate {
@@ -9,6 +11,14 @@ abstract class ExtentManagerDelegate {
 
   void onMarkNeedsLayout();
   HeaderAnchorHandle? preserveHeader(RenderBox header) => null;
+  Future<void> jumpToIndex(int index, double alignment, double offset) =>
+      Future<void>.value();
+  double? pixelsForIndex(int index, double alignment, double offset) => null;
+  ListAnchor? get currentAnchor => null;
+  List<ItemPosition> computeItemPositions() => const [];
+  void requestItemPositions() {}
+  bool get hasPendingTarget => false;
+  ScrollPosition? get scrollPosition => null;
   double estimateExtentForItem(int? index);
   double getOffsetToReveal(
     int index,
@@ -37,6 +47,14 @@ class ItemRange {
 
   @override
   String toString() => "ItemRange($first, $last)";
+}
+
+/// Receives item positions published after layout.
+abstract class ItemPositionsSink {
+  /// Whether anyone listens; positions are only computed when true.
+  bool get wantsItemPositions;
+
+  void updateItemPositions(List<ItemPosition> positions);
 }
 
 class _ExtentsChangedNotifier extends ChangeNotifier {
@@ -74,6 +92,9 @@ class ExtentManager with ChangeNotifier {
   StickTarget? stickTarget;
 
   Object? revealOwner;
+
+  /// Destination for item positions computed after each layout.
+  ItemPositionsSink? itemPositionsSink;
 
   Object beginReveal() => revealOwner = Object();
 

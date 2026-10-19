@@ -29,9 +29,10 @@ abstract final class SuperSliverListPerfFlags {
   /// layout callback and build scope wrap the whole measuring loop.
   static bool batchExtentPrecalculation = true;
 
-  /// Win 5: `_firstWholeVisibleChild` walked all leading cache-area children
-  /// on every layout, but its result is only consumed while the cross axis is
-  /// resizing. When enabled, the walk only happens in that case.
+  /// Win 5: no longer has an effect. Every layout now looks up the child at
+  /// the viewport's leading edge, which scroll anchoring needs; the walk stops
+  /// at that child.
+  @Deprecated("Has no effect.")
   static bool lazyFirstVisibleChild = true;
 
   /// Win 6: `ExtentList.setExtent` reset the tracked clean range to a single

@@ -1,5 +1,6 @@
+import "dart:async";
 import "dart:math" as math;
-import "package:flutter/foundation.dart" show internal;
+import "package:flutter/foundation.dart";
 import "package:flutter/rendering.dart";
 import "package:flutter/widgets.dart";
 import "package:logging/logging.dart";
@@ -7,20 +8,25 @@ import "animate_to_item.dart";
 import "element.dart";
 import "extent_manager.dart";
 import "header_anchor.dart";
+import "item_position.dart";
 import "layout_budget.dart";
 import "render_object.dart";
 import "stick_target.dart";
 
 final _log = Logger("SuperSliverList");
 
-/// Handle for a running animation started by [ListController.animateToItem].
+/// Handle for a running animation started by [ListController.animateToItem]
+/// or [ListController.scrollToIndex].
 ///
-/// Use [cancel] to stop the animation and dispose its resources. If the
-/// animation completes normally, resources are disposed automatically.
-class AnimationHandle {
-  AnimationHandle._(this._animations);
+/// The handle is a [Future] that completes when the animation finished or was
+/// canceled. Use [cancel] to stop the animation; resources are disposed
+/// either way.
+class AnimationHandle implements Future<void> {
+  AnimationHandle._(this._animations)
+    : _future = Future.wait(_animations.map((a) => a.done));
 
-  final List<AnimateToItem> _animations;
+  final List<PositioningOperation> _animations;
+  final Future<void> _future;
 
   /// Cancels the animation and disposes resources.
   ///
@@ -33,6 +39,149 @@ class AnimationHandle {
 
   /// Whether any of the animations are still running.
   bool get isAnimating => _animations.any((a) => a.isAnimating);
+
+  @override
+  Stream<void> asStream() => _future.asStream();
+
+  @override
+  Future<void> catchError(Function onError, {bool Function(Object)? test}) =>
+      _future.catchError(onError, test: test);
+
+  @override
+  Future<R> then<R>(
+    FutureOr<R> Function(void value) onValue, {
+    Function? onError,
+  }) => _future.then(onValue, onError: onError);
+
+  @override
+  Future<void> timeout(
+    Duration timeLimit, {
+    FutureOr<void> Function()? onTimeout,
+  }) => _future.timeout(timeLimit, onTimeout: onTimeout);
+
+  @override
+  Future<void> whenComplete(FutureOr<void> Function() action) =>
+      _future.whenComplete(action);
+}
+
+class _ItemPositionsNotifier extends ChangeNotifier
+    implements ValueListenable<List<ItemPosition>>, ItemPositionsSink {
+  _ItemPositionsNotifier(this._onFirstListener);
+
+  final VoidCallback _onFirstListener;
+  List<ItemPosition> _value = const [];
+
+  @override
+  List<ItemPosition> get value => _value;
+
+  @override
+  bool get wantsItemPositions => hasListeners;
+
+  @override
+  void addListener(VoidCallback listener) {
+    final first = !hasListeners;
+    super.addListener(listener);
+    if (first) {
+      _onFirstListener();
+    }
+  }
+
+  @override
+  void updateItemPositions(List<ItemPosition> positions) {
+    if (listEquals(positions, _value)) {
+      return;
+    }
+    _value = List.unmodifiable(positions);
+    notifyListeners();
+  }
+}
+
+/// Scrolls to an item with leading edge alignment, then lands exactly.
+class _ScrollToIndex implements PositioningOperation {
+  _ScrollToIndex({
+    required this.controller,
+    required this.owner,
+    required this.index,
+    required this.alignment,
+    required this.offset,
+  });
+
+  final ListController controller;
+  final Object owner;
+  final int index;
+  final double alignment;
+  final double offset;
+  final _completer = Completer<void>();
+  TargetScrollAnimation? _animation;
+
+  @override
+  Future<void> get done => _completer.future;
+
+  @override
+  bool get isAnimating => !_completer.isCompleted;
+
+  bool get _isCurrent => identical(controller._delegate?.revealOwner, owner);
+
+  double? _target() {
+    if (!_isCurrent) {
+      return null;
+    }
+    return controller._delegate?.delegate.pixelsForIndex(
+      index,
+      alignment,
+      offset,
+    );
+  }
+
+  void start(ScrollPosition position, Duration duration, Curve curve) {
+    final animation = TargetScrollAnimation.start(
+      position: position,
+      target: _target,
+      duration: duration,
+      curve: curve,
+    );
+    _animation = animation;
+    animation.done.then((_) {
+      final delegate = controller._delegate;
+      if (animation.reachedTarget && _isCurrent && delegate != null) {
+        delegate.delegate
+            .jumpToIndex(index, alignment, offset)
+            .whenComplete(_complete);
+      } else {
+        _complete();
+      }
+    });
+  }
+
+  @override
+  void cancel() {
+    final animation = _animation;
+    if (animation != null && animation.isAnimating) {
+      animation.cancel();
+    } else {
+      _complete();
+    }
+  }
+
+  void _complete() {
+    if (!_completer.isCompleted) {
+      _completer.complete();
+    }
+    controller._animations.remove(this);
+  }
+}
+
+class _CompletedOperation implements PositioningOperation {
+  _CompletedOperation(this.done);
+
+  @override
+  final Future<void> done;
+
+  @override
+  bool get isAnimating => false;
+
+  @override
+  void cancel() {}
 }
 
 /// Controls where the viewport should be positioned during the first layout
@@ -111,7 +260,100 @@ class ListController extends ChangeNotifier {
 
   StickTarget? _stickTarget;
   HeaderAnchorHandle? _headerAnchor;
-  final Set<AnimateToItem> _animations = {};
+  final Set<PositioningOperation> _animations = {};
+
+  late final _itemPositions = _ItemPositionsNotifier(() {
+    _delegate?.delegate.requestItemPositions();
+  });
+
+  /// Positions of the items that are at least partially visible, in index
+  /// order, published after every frame in which they changed.
+  ///
+  /// Edges are fractions of the viewport extent measured from its leading
+  /// edge, as in `scrollable_positioned_list`. Positions are only computed
+  /// while this has listeners.
+  ValueListenable<List<ItemPosition>> get itemPositions => _itemPositions;
+
+  /// The first visible item and how far the viewport's leading edge is inside
+  /// it. Pass `-anchor.offsetInItem` as the offset of [jumpToIndex] to restore
+  /// it.
+  ListAnchor? get anchor => _delegate?.delegate.currentAnchor;
+
+  /// The scroll position of the viewport containing the attached list.
+  ScrollPosition? get scrollPosition => _delegate?.delegate.scrollPosition;
+
+  /// Places the leading edge of the item at [index] at [alignment] of the
+  /// viewport (0 is the leading edge, 1 the trailing edge, negative values are
+  /// allowed) plus [offset] pixels.
+  ///
+  /// The position is resolved during the next layout, before anything is
+  /// painted, and is exact even when the extents of the items in between have
+  /// only been estimated. Only the items around the target are built. The
+  /// position is clamped to the scroll range.
+  ///
+  /// The returned future completes after that layout, or when the jump is
+  /// replaced or canceled.
+  Future<void> jumpToIndex(
+    int index, {
+    double alignment = 0.0,
+    double offset = 0.0,
+  }) {
+    assert(_delegate != null, "ListController is not attached.");
+    if (_delegate == null) {
+      return Future<void>.value();
+    }
+    _headerAnchor?.cancel();
+    cancelPositioning();
+    final position = scrollPosition;
+    if (position != null && position.hasPixels) {
+      // Stops a fling or drag in progress.
+      position.jumpTo(position.pixels);
+    }
+    return _delegate!.delegate.jumpToIndex(index, alignment, offset);
+  }
+
+  /// Animates until the leading edge of the item at [index] is at [alignment]
+  /// of the viewport plus [offset] pixels; see [jumpToIndex].
+  ///
+  /// A distant item is first jumped to about one viewport away, then the
+  /// remaining distance is animated as a scroll activity that user input
+  /// cancels. The target is re-evaluated on every frame, and the list lands
+  /// exactly once the item has been measured.
+  ///
+  /// The returned handle completes when the animation finished or was
+  /// canceled.
+  AnimationHandle scrollToIndex(
+    int index, {
+    double alignment = 0.0,
+    double offset = 0.0,
+    required Duration duration,
+    Curve curve = Curves.linear,
+  }) {
+    assert(_delegate != null, "ListController is not attached.");
+    final position = scrollPosition;
+    if (_delegate == null ||
+        position == null ||
+        !position.hasPixels ||
+        duration <= Duration.zero) {
+      return AnimationHandle._([
+        _CompletedOperation(
+          jumpToIndex(index, alignment: alignment, offset: offset),
+        ),
+      ]);
+    }
+    _headerAnchor?.cancel();
+    cancelPositioning();
+    final operation = _ScrollToIndex(
+      controller: this,
+      owner: _delegate!.beginReveal(),
+      index: index,
+      alignment: alignment,
+      offset: offset,
+    );
+    _animations.add(operation);
+    operation.start(position, duration, curve);
+    return AnimationHandle._([operation]);
+  }
 
   bool get hasActiveHeaderAnchor => _headerAnchor?.isActive ?? false;
 
@@ -251,7 +493,7 @@ class ListController extends ChangeNotifier {
     assert(_delegate != null, "ListController is not attached.");
     _headerAnchor?.cancel();
     cancelPositioning();
-    final items = <AnimateToItem>[];
+    final items = <PositioningOperation>[];
     final revealOwner = _delegate!.beginReveal();
     for (final position in scrollController.positions) {
       final item = AnimateToItem(
@@ -375,37 +617,66 @@ class ListController extends ChangeNotifier {
       unsetDelegate(_delegate!);
     }
     _extentsChangedNotifier.dispose();
+    _itemPositions.dispose();
     super.dispose();
   }
 
   ExtentManager? _delegate;
 
+  // Lists this controller is attached to, newest last. A controller can be
+  // attached to two lists for a moment (a key change or route transition);
+  // the newest wins and detaching the older one keeps it.
+  final _attachedDelegates = <ExtentManager>[];
+
   void setDelegate(ExtentManager delegate) {
+    _attachedDelegates
+      ..remove(delegate)
+      ..add(delegate);
+    _activate(delegate);
+  }
+
+  void _activate(ExtentManager delegate) {
     if (_delegate == delegate) {
       return;
     }
     if (_delegate != null) {
       onDetached?.call();
     }
-    _delegate?.removeListener(notifyListeners);
-    _delegate?.extentsChangedListenable.removeListener(_notifyExtentsChanged);
+    _detachCurrent();
     _delegate = delegate;
     _delegate?.stickTarget = _stickTarget;
     _delegate?.addListener(notifyListeners);
     _delegate?.extentsChangedListenable.addListener(_notifyExtentsChanged);
-    if (_delegate != null) {
-      onAttached?.call();
+    delegate.itemPositionsSink = _itemPositions;
+    if (_itemPositions.wantsItemPositions) {
+      delegate.delegate.requestItemPositions();
+    }
+    onAttached?.call();
+  }
+
+  void _detachCurrent() {
+    final current = _delegate;
+    if (current == null) {
+      return;
+    }
+    current.removeListener(notifyListeners);
+    current.extentsChangedListenable.removeListener(_notifyExtentsChanged);
+    if (identical(current.itemPositionsSink, _itemPositions)) {
+      current.itemPositionsSink = null;
     }
   }
 
   void unsetDelegate(ExtentManager delegate) {
+    _attachedDelegates.remove(delegate);
     if (_delegate == delegate) {
       cancelPositioning();
       _headerAnchor?.cancel();
-      _delegate?.removeListener(notifyListeners);
-      _delegate?.extentsChangedListenable.removeListener(_notifyExtentsChanged);
+      _detachCurrent();
       _delegate = null;
       onDetached?.call();
+      if (_attachedDelegates.isNotEmpty) {
+        _activate(_attachedDelegates.last);
+      }
     }
   }
 
@@ -538,6 +809,9 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.delayPopulatingCacheArea = true,
     this.layoutKeptAliveChildren = false,
     this.initialScrollPosition = InitialScrollPosition.start,
+    this.initialIndex,
+    this.initialAlignment = 0.0,
+    this.initialOffset = 0.0,
   });
 
   /// Creates a SuperSliverList from widget builder.
@@ -554,6 +828,9 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.delayPopulatingCacheArea = true,
     this.layoutKeptAliveChildren = false,
     this.initialScrollPosition = InitialScrollPosition.start,
+    this.initialIndex,
+    this.initialAlignment = 0.0,
+    this.initialOffset = 0.0,
     bool addAutomaticKeepAlives = true,
     bool addRepaintBoundaries = true,
     bool addSemanticIndexes = true,
@@ -583,6 +860,9 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.delayPopulatingCacheArea = true,
     this.layoutKeptAliveChildren = false,
     this.initialScrollPosition = InitialScrollPosition.start,
+    this.initialIndex,
+    this.initialAlignment = 0.0,
+    this.initialOffset = 0.0,
     int? itemCount,
     bool addAutomaticKeepAlives = true,
     bool addRepaintBoundaries = true,
@@ -630,6 +910,9 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.delayPopulatingCacheArea = true,
     this.layoutKeptAliveChildren = false,
     this.initialScrollPosition = InitialScrollPosition.start,
+    this.initialIndex,
+    this.initialAlignment = 0.0,
+    this.initialOffset = 0.0,
     bool addAutomaticKeepAlives = true,
     bool addRepaintBoundaries = true,
     bool addSemanticIndexes = true,
@@ -681,6 +964,19 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
   /// Where the list should begin when it is laid out for the first time.
   final InitialScrollPosition initialScrollPosition;
 
+  /// Index of the item whose leading edge is placed at [initialAlignment] of
+  /// the viewport plus [initialOffset] pixels when the list is laid out for
+  /// the first time. Applied before the first paint; later changes are
+  /// ignored. Takes precedence over [initialScrollPosition].
+  final int? initialIndex;
+
+  /// Fraction of the viewport where the leading edge of the item at
+  /// [initialIndex] is placed. 0 is the leading edge, 1 the trailing edge.
+  final double initialAlignment;
+
+  /// Pixels added to [initialAlignment].
+  final double initialOffset;
+
   static SuperSliverListLayoutBudget layoutBudget =
       _TimeSuperSliverListLayoutBudget(budget: const Duration(milliseconds: 3));
 
@@ -698,6 +994,9 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
       delayPopulatingCacheArea: delayPopulatingCacheArea,
       layoutKeptAliveChildren: layoutKeptAliveChildren,
       initialScrollPosition: initialScrollPosition,
+      initialIndex: initialIndex,
+      initialAlignment: initialAlignment,
+      initialOffset: initialOffset,
     );
   }
 
