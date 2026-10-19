@@ -1,4 +1,8 @@
-# SliverList and ListView - Supercharged
+# positioned_sliver_list
+
+A fork of [super_sliver_list](https://pub.dev/packages/super_sliver_list) (MIT) maintained by the Otzaria contributors. It is not affiliated with or endorsed by the original authors.
+
+## SliverList and ListView - Supercharged
 
 > See the [live example](https://superlistapp.github.io/super_sliver_list/#/) of `SuperSliverList`.
 

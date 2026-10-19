@@ -13,8 +13,8 @@
 // Run with:
 //   flutter test test/perf/win15_structural_clean_range_perf_test.dart
 import "package:flutter_test/flutter_test.dart";
-import "package:super_sliver_list/src/extent_list.dart";
-import "package:super_sliver_list/super_sliver_list.dart";
+import "package:positioned_sliver_list/src/extent_list.dart";
+import "package:positioned_sliver_list/positioned_sliver_list.dart";
 
 import "perf_tester.dart";
 

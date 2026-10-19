@@ -1,4 +1,7 @@
-## Unreleased
+## 0.1.0
+
+* First release as `positioned_sliver_list`, a fork of `super_sliver_list` 0.4.1
+  that includes the fixes from the Telosnex and ahey forks.
 
 * Add cancellable descendant-header anchoring for forward vertical single-list viewports.
 * Add side-effect-free reveal offset estimation and cancellation for pending reveal operations.

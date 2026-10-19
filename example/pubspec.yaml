@@ -9,7 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  super_sliver_list:
+  positioned_sliver_list:
     path: ../
   logging: ^1.2.0
   headless_widgets:

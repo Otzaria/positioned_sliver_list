@@ -1,7 +1,7 @@
 import "dart:math" as math;
 
 import "package:flutter/widgets.dart";
-import "package:super_sliver_list/src/super_sliver_list.dart";
+import "package:positioned_sliver_list/src/super_sliver_list.dart";
 
 class SliverItem {
   final int value;

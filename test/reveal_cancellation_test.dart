@@ -1,7 +1,7 @@
 import "package:flutter/material.dart";
 import "package:flutter/rendering.dart";
 import "package:flutter_test/flutter_test.dart";
-import "package:super_sliver_list/super_sliver_list.dart";
+import "package:positioned_sliver_list/positioned_sliver_list.dart";
 
 void main() {
   testWidgets("one animation request owns every attached scroll position",

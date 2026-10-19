@@ -8,7 +8,7 @@
 // Run with:
 //   flutter test test/perf/win8_trailing_child_hoist_perf_test.dart
 import "package:flutter_test/flutter_test.dart";
-import "package:super_sliver_list/super_sliver_list.dart";
+import "package:positioned_sliver_list/positioned_sliver_list.dart";
 
 import "perf_tester.dart";
 import "widget_scenarios.dart";

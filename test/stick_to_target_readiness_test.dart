@@ -2,7 +2,7 @@ import "package:flutter/gestures.dart";
 import "package:flutter/material.dart";
 import "package:flutter/scheduler.dart";
 import "package:flutter_test/flutter_test.dart";
-import "package:super_sliver_list/super_sliver_list.dart";
+import "package:positioned_sliver_list/positioned_sliver_list.dart";
 
 const _itemTarget = StickTarget(
   index: 3,

@@ -1,7 +1,7 @@
 // Shared widget scenarios for the render-object perf tests.
 import "package:flutter/widgets.dart";
 import "package:flutter_test/flutter_test.dart";
-import "package:super_sliver_list/super_sliver_list.dart";
+import "package:positioned_sliver_list/positioned_sliver_list.dart";
 
 /// Configuration for a scroll scenario.
 ///

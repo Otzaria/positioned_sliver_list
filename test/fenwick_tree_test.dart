@@ -1,7 +1,7 @@
 import "dart:math" as math;
 import "dart:typed_data";
 
-import "package:super_sliver_list/src/fenwick_tree.dart";
+import "package:positioned_sliver_list/src/fenwick_tree.dart";
 import "package:test/test.dart";
 
 void main() {

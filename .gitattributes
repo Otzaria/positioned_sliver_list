@@ -1,4 +1,10 @@
+# LF everywhere, also on Windows checkouts (core.autocrlf): pub.dev archives
+# and the CI line-endings check must never see CRLF.
 * text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
 *.png binary
 *.jpg binary
 *.ico binary
+*.jar binary
+*.ttf binary

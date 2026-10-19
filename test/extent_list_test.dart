@@ -1,5 +1,5 @@
-import "package:super_sliver_list/src/extent_list.dart";
-import "package:super_sliver_list/src/perf_flags.dart";
+import "package:positioned_sliver_list/src/extent_list.dart";
+import "package:positioned_sliver_list/src/perf_flags.dart";
 import "package:test/test.dart";
 
 void main() {

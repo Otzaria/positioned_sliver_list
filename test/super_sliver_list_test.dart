@@ -6,7 +6,7 @@ import "package:flutter/rendering.dart";
 import "package:flutter_test/flutter_test.dart";
 import "package:logging/logging.dart";
 import "package:sliver_tools/sliver_tools.dart";
-import "package:super_sliver_list/super_sliver_list.dart";
+import "package:positioned_sliver_list/positioned_sliver_list.dart";
 
 // ignore: deprecated_member_use
 import "package:test_api/src/backend/invoker.dart" as invoker;

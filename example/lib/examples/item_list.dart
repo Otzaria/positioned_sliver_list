@@ -3,7 +3,7 @@ import "package:flutter/material.dart" show Colors;
 import "package:flutter/services.dart";
 import "package:flutter_lorem/flutter_lorem.dart";
 import "package:pixel_snap/widgets.dart";
-import "package:super_sliver_list/super_sliver_list.dart";
+import "package:positioned_sliver_list/positioned_sliver_list.dart";
 
 import "../shell/app_settings.dart";
 import "../shell/example_page.dart";

@@ -1,7 +1,7 @@
 import "package:context_plus/context_plus.dart";
 import "package:flutter/material.dart" show Colors;
 import "package:pixel_snap/widgets.dart";
-import "package:super_sliver_list/super_sliver_list.dart";
+import "package:positioned_sliver_list/positioned_sliver_list.dart";
 import "package:super_sliver_list_example_data/sherlock.dart" as sherlock;
 
 import "../shell/app_settings.dart";

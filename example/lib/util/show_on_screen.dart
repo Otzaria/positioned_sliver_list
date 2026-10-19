@@ -1,6 +1,6 @@
 import "package:flutter/rendering.dart";
 import "package:flutter/widgets.dart";
-import "package:super_sliver_list/super_sliver_list.dart";
+import "package:positioned_sliver_list/positioned_sliver_list.dart";
 
 extension RenderObjectShowOnScreen on RenderObject {
   /// showOnScreen alternative that doesn't scroll if the widget is already

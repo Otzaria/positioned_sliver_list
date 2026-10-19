@@ -1,7 +1,7 @@
 import "dart:math" as math;
 import "package:flutter/rendering.dart";
 import "package:flutter/widgets.dart";
-import "package:super_sliver_list/super_sliver_list.dart";
+import "package:positioned_sliver_list/positioned_sliver_list.dart";
 
 // This is a stripped-down minimal version of flutter_sticky_header from
 // https://github.com/letsar/flutter_sticky_headers

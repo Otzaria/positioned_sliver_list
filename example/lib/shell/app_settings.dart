@@ -1,6 +1,6 @@
 import "package:context_plus/context_plus.dart";
 import "package:flutter/widgets.dart";
-import "package:super_sliver_list/super_sliver_list.dart";
+import "package:positioned_sliver_list/positioned_sliver_list.dart";
 
 enum PrecomputeExtentPolicy {
   none,
