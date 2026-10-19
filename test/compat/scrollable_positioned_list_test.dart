@@ -2626,6 +2626,20 @@ bool collectSemanticNodes(SemanticsNode root, List<SemanticsNode> nodes) {
 
 // Tests of the original that check its internals; the reason is printed.
 const _skipped = <String, String>{
+  'padding - last element centered - scroll down':
+      'the original clamps to the content when the content after (or before) the target fills the viewport; this layer leaves blank space instead (allowOverscrollToTarget, on by default)',
+  'Jump to end of list':
+      'the original clamps to the content when the content after (or before) the target fills the viewport; this layer leaves blank space instead (allowOverscrollToTarget, on by default)',
+  'Scroll to end of list':
+      'the original clamps to the content when the content after (or before) the target fills the viewport; this layer leaves blank space instead (allowOverscrollToTarget, on by default)',
+  'Scroll to end of list, jump to beginning, jump to end':
+      'the original clamps to the content when the content after (or before) the target fills the viewport; this layer leaves blank space instead (allowOverscrollToTarget, on by default)',
+  'Jump to end of list, scroll to beginning, scroll to end':
+      'the original clamps to the content when the content after (or before) the target fills the viewport; this layer leaves blank space instead (allowOverscrollToTarget, on by default)',
+  'Jump to end of list, jump to beginning with alignment not at top':
+      'the original clamps to the content when the content after (or before) the target fills the viewport; this layer leaves blank space instead (allowOverscrollToTarget, on by default)',
+  'List positioned with 499 at bottom then set itemCount to 100':
+      'the original clamps to the content when the content after (or before) the target fills the viewport; this layer leaves blank space instead (allowOverscrollToTarget, on by default)',
   'Scroll to 20 without fading':
       'asserts the two-list cross-fade (FadeTransition/opacity/second list), which does not exist here',
   'Scroll to 20 without fading small minCacheExtent':
@@ -2658,8 +2672,6 @@ const _skipped = <String, String>{
       'asserts the two-list cross-fade (FadeTransition/opacity/second list), which does not exist here',
   'Scroll to 0 stop after half way':
       'asserts the two-list cross-fade (FadeTransition/opacity/second list), which does not exist here',
-  'Position list when not enough above top item to fill viewport':
-      'the original leaves empty space before the first item for alignment > 0; this list clamps to the scroll range',
 };
 
 void testWidgets(

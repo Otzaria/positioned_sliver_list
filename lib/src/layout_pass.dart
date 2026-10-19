@@ -9,6 +9,7 @@ class SliverLayoutState {
   bool didAddInitialChild = false;
   bool didRemoveChildren = false;
   bool didSetPreviousConstraint = false;
+  int? extentRevision;
   bool? precalculateExtents;
 }
 

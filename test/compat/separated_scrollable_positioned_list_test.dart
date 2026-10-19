@@ -4,7 +4,8 @@
 // Modifications Copyright 2026 The Otzaria contributors.
 
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart' hide testWidgets;
+import 'package:flutter_test/flutter_test.dart' as ft show testWidgets;
 import 'dart:async';
 import 'package:positioned_sliver_list/positioned_list.dart';
 
@@ -694,3 +695,29 @@ double _screenProportion({
 }) =>
     (numberOfItems * itemHeight + numberOfSeparators * separatorHeight) /
     screenHeight;
+
+// Tests of the original that check its internals; the reason is printed.
+const _skipped = <String, String>{
+  'padding test - centered at top':
+      'the original clamps to the content when the content after (or before) the target fills the viewport; this layer leaves blank space instead (allowOverscrollToTarget, on by default)',
+};
+
+void testWidgets(
+  String description,
+  WidgetTesterCallback callback, {
+  bool? skip,
+}) {
+  final reason = _skipped[description];
+  ft.testWidgets(
+    description,
+    callback,
+    skip:
+        (skip ?? false) || (reason != null && _printSkip(description, reason)),
+  );
+}
+
+bool _printSkip(String description, String reason) {
+  // ignore: avoid_print
+  print('Skipped "$description": $reason');
+  return true;
+}

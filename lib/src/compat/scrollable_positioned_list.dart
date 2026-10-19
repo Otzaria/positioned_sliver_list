@@ -59,6 +59,7 @@ class ScrollablePositionedList extends StatefulWidget {
     this.scrollController,
     this.estimateExtent,
     this.restorePosition = false,
+    this.allowOverscrollToTarget = true,
   }) : assert(cacheExtentScreens >= 0),
        separatorBuilder = null,
        estimatedSeparatorExtent = 0;
@@ -90,6 +91,7 @@ class ScrollablePositionedList extends StatefulWidget {
     this.scrollController,
     this.estimateExtent,
     this.restorePosition = false,
+    this.allowOverscrollToTarget = true,
   }) : assert(cacheExtentScreens >= 0),
        separatorBuilder = null,
        estimatedSeparatorExtent = 0;
@@ -124,6 +126,7 @@ class ScrollablePositionedList extends StatefulWidget {
     this.estimateExtent,
     this.estimatedSeparatorExtent = 0,
     this.restorePosition = false,
+    this.allowOverscrollToTarget = true,
   }) : assert(cacheExtentScreens >= 0);
 
   /// Number of items [itemBuilder] can build.
@@ -212,6 +215,14 @@ class ScrollablePositionedList extends StatefulWidget {
   /// Whether the visible item is saved to [PageStorage] and restored when the
   /// list is recreated. Off by default; [initialScrollIndex] is used then.
   final bool restorePosition;
+
+  /// Whether [ItemScrollController.jumpTo], [ItemScrollController.scrollTo]
+  /// and the initial position may leave blank space before the first or after
+  /// the last item so that the target lands exactly at its alignment, for
+  /// example the last item at the top of the viewport. The space shrinks as
+  /// the user scrolls back towards the content. See
+  /// [SuperSliverList.allowOverscrollToTarget].
+  final bool allowOverscrollToTarget;
 
   bool get _separated => separatorBuilder != null;
 
@@ -746,6 +757,7 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
       initialIndex: _childIndex(_initialIndex),
       initialAlignment: _initialAlignment,
       initialOffset: _itemOffset(_initialIndex, _initialOffset),
+      allowOverscrollToTarget: widget.allowOverscrollToTarget,
     );
     return Listener(
       onPointerDown: (_) => _cancelAnimations(),

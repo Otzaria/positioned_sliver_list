@@ -11,6 +11,12 @@ First release as `positioned_sliver_list`, a fork of `super_sliver_list` 0.4.1.
   `Future<void>`, and no longer jumps through every item on the way.
 * `SuperSliverList.initialIndex`, `initialAlignment` and `initialOffset` position
   the list before the first paint.
+* `SuperSliverList.allowOverscrollToTarget` (opt-in; on by default in the
+  compatibility layer) lets a jump, an animation or the initial position add
+  blank space before the first or after the last item so the target lands
+  exactly, for example the last item at the top of the viewport. The space
+  shrinks as the user scrolls back and is used up by appended items;
+  `ListController.overscrollSpace` reports it.
 * `ListController.itemPositions` publishes the visible items after layout, and
   `ListController.anchor` reports the item at the viewport's leading edge.
 * The item at the viewport's leading edge keeps its position when items above it

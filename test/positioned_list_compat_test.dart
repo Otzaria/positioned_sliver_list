@@ -205,4 +205,40 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(_text("Item 100")).dy, closeTo(50, 0.01));
   });
+
+  for (final allow in [true, false]) {
+    testWidgets("allowOverscrollToTarget: $allow", (tester) async {
+      final controller = ItemScrollController();
+      final positions = ItemPositionsListener.create();
+      await tester.pumpWidget(
+        _host(
+          ScrollablePositionedList.builder(
+            itemCount: 1000,
+            itemScrollController: controller,
+            itemPositionsListener: positions,
+            allowOverscrollToTarget: allow,
+            itemBuilder: (context, index) =>
+                SizedBox(height: _extent(index), child: Text("Item $index")),
+          ),
+        ),
+      );
+      controller.jumpTo(index: 999);
+      await tester.pumpAndSettle();
+      final last = tester.getRect(_text("Item 999"));
+      if (allow) {
+        expect(last.top, closeTo(0, 0.01));
+        final p = positions.itemPositions.value.single;
+        expect(p.index, 999);
+        expect(p.itemLeadingEdge, 0);
+      } else {
+        expect(last.bottom, closeTo(_viewport, 0.01));
+      }
+      controller.jumpTo(index: 0, alignment: 0.3);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(_text("Item 0")).dy,
+        closeTo(allow ? 180 : 0, 0.01),
+      );
+    });
+  }
 }

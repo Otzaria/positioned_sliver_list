@@ -22,6 +22,20 @@ final _log = Logger("SuperSliverList");
 /// Pixels within which a pending item target counts as reached.
 const _kTargetTolerance = 1e-3;
 
+/// Where a target lands when blank space may be added around the content.
+class _OverscrollSolution {
+  const _OverscrollSolution(this.pixels, this.leading, this.trailing);
+
+  /// Scroll pixels of the viewport.
+  final double pixels;
+
+  /// Blank space before the first item.
+  final double leading;
+
+  /// Blank space after the last item.
+  final double trailing;
+}
+
 /// An item whose leading edge should be placed at [alignment] of the viewport
 /// plus [offset] pixels. Resolved during layout, before paint.
 class _PendingItemTarget {
@@ -108,7 +122,9 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     int? initialIndex,
     double initialAlignment = 0.0,
     double initialOffset = 0.0,
-  }) : _initialScrollPosition = initialScrollPosition,
+    bool allowOverscrollToTarget = false,
+  }) : _allowOverscrollToTarget = allowOverscrollToTarget,
+       _initialScrollPosition = initialScrollPosition,
        _didResolveInitialScrollPosition =
            initialScrollPosition == InitialScrollPosition.start {
     this.extentPrecalculationPolicy = extentPrecalculationPolicy;
@@ -215,6 +231,198 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
   }
 
   _PendingItemTarget? _pendingTarget;
+
+  bool _allowOverscrollToTarget;
+
+  /// Whether a jump may add blank space before the first or after the last
+  /// item so that its target lands exactly where requested.
+  bool get allowOverscrollToTarget => _allowOverscrollToTarget;
+  set allowOverscrollToTarget(bool value) {
+    if (value == _allowOverscrollToTarget) {
+      return;
+    }
+    _allowOverscrollToTarget = value;
+    if (!value) {
+      _reservedLeadingSpace = 0.0;
+      _trailingSpace = 0.0;
+      _pinnedIndex = null;
+      // Removing the leading space is done by the next layout.
+      holdOverscrollSpace = false;
+    }
+    markNeedsLayout();
+  }
+
+  // Blank space before the first item. Item positions are kept in content
+  // coordinates; everything outside layout sees them shifted by this amount.
+  double _leadingSpace = 0.0;
+
+  // Blank space after the last item, part of this sliver's scroll extent.
+  double _trailingSpace = 0.0;
+
+  // Leading space requested before an animation; applied by the next layout
+  // together with a correction that keeps the content in place.
+  double _reservedLeadingSpace = 0.0;
+
+  // The item a jump placed while blank space exists; it is the scroll anchor
+  // until the space is gone.
+  int? _pinnedIndex;
+
+  /// While true (during a programmatic animation) the blank space does not
+  /// shrink when the viewport moves into the content.
+  bool holdOverscrollSpace = false;
+
+  /// Blank space currently added before the first and after the last item.
+  ({double leading, double trailing}) get overscrollSpace =>
+      (leading: _leadingSpace, trailing: _trailingSpace);
+
+  // Constraints in content coordinates, active while laying out.
+  SliverConstraints? _contentConstraintsOverride;
+
+  // Content constraints of the last layout, when there was leading space.
+  SliverConstraints? _lastContentConstraints;
+
+  @override
+  SliverConstraints get constraints =>
+      _contentConstraintsOverride ?? super.constraints;
+
+  T _inContentSpace<T>(T Function() compute) {
+    final content = _lastContentConstraints;
+    if (content == null || _contentConstraintsOverride != null) {
+      return compute();
+    }
+    _contentConstraintsOverride = content;
+    try {
+      return compute();
+    } finally {
+      _contentConstraintsOverride = null;
+    }
+  }
+
+  SliverConstraints _contentConstraintsFor(
+    SliverConstraints outer,
+    double leading,
+  ) {
+    final beforePaint = calculatePaintOffset(outer, from: 0, to: leading);
+    final beforeCache = calculateCacheOffset(outer, from: 0, to: leading);
+    return outer.copyWith(
+      scrollOffset: math.max(0.0, outer.scrollOffset - leading),
+      cacheOrigin: math.min(0.0, outer.cacheOrigin + leading),
+      overlap: math.max(0.0, outer.overlap - beforePaint),
+      remainingPaintExtent: outer.remainingPaintExtent - beforePaint,
+      remainingCacheExtent: outer.remainingCacheExtent - beforeCache,
+      precedingScrollExtent: leading + outer.precedingScrollExtent,
+    );
+  }
+
+  void _applyLeadingSpaceToGeometry(SliverConstraints outer, double leading) {
+    final content = geometry!;
+    final beforePaint = calculatePaintOffset(outer, from: 0, to: leading);
+    final beforeCache = calculateCacheOffset(outer, from: 0, to: leading);
+    final paintExtent = math.min(
+      beforePaint + content.paintExtent,
+      outer.remainingPaintExtent,
+    );
+    geometry = SliverGeometry(
+      scrollExtent: leading + content.scrollExtent,
+      paintExtent: paintExtent,
+      layoutExtent: math.min(beforePaint + content.layoutExtent, paintExtent),
+      cacheExtent: math.min(
+        beforeCache + content.cacheExtent,
+        outer.remainingCacheExtent,
+      ),
+      maxPaintExtent: leading + content.maxPaintExtent,
+      hitTestExtent: paintExtent,
+      hasVisualOverflow: content.hasVisualOverflow,
+    );
+  }
+
+  /// Where the item laid out at [layoutOffset] (content coordinates) lands
+  /// with blank space allowed, and how much space that needs. Null when the
+  /// sliver does not grow forward from the viewport's center.
+  _OverscrollSolution? _solveOverscroll(
+    double layoutOffset,
+    double alignment,
+    double offset,
+  ) {
+    if (constraints.growthDirection != GrowthDirection.forward) {
+      return null;
+    }
+    final viewport = getViewport();
+    if (viewport == null) {
+      return null;
+    }
+    final extent = constraints.viewportMainAxisExtent;
+    final finiteExtent = extent.isFinite ? extent : 0.0;
+    // Start of this sliver in scroll pixels, without leading space.
+    final origin =
+        _centerOrigin(viewport) +
+        constraints.precedingScrollExtent -
+        _leadingSpace;
+    final target = layoutOffset - alignment * finiteExtent - offset;
+    // Content before this sliver (padding, other slivers) is used before
+    // blank space is added.
+    final position = viewport.offset;
+    final minPixels =
+        position is ScrollPosition && position.hasContentDimensions
+        ? math.min(position.minScrollExtent, origin)
+        : math.min(0.0, origin);
+    final room = origin - minPixels;
+    final leading = math.max(0.0, -(target + room));
+    final pixels = leading > 0 ? minPixels : origin + target;
+    var trailing = 0.0;
+    var clampedPixels = pixels;
+    final maxPixels =
+        origin +
+        leading +
+        _totalExtent() +
+        _trailingPaddingExtent() -
+        finiteExtent;
+    if (_isTrailingSliver()) {
+      trailing = math.max(0.0, pixels - maxPixels);
+    } else {
+      clampedPixels = math.min(pixels, math.max(origin, maxPixels));
+    }
+    return _OverscrollSolution(clampedPixels, leading, trailing);
+  }
+
+  /// Blank space after the last item that the viewport currently shows.
+  double _trailingSpaceNeeded() {
+    if (!_isTrailingSliver()) {
+      return 0.0;
+    }
+    final visibleEnd =
+        constraints.scrollOffset + constraints.remainingPaintExtent;
+    return math.max(
+      0.0,
+      visibleEnd - _totalExtent() - _trailingPaddingExtent(),
+    );
+  }
+
+  /// Requests the blank space a jump to [index] needs before an animation to
+  /// it starts, so the animation can reach the target.
+  void reserveOverscrollSpace(int index, double alignment, double offset) {
+    if (!_allowOverscrollToTarget || !attached || geometry == null) {
+      return;
+    }
+    final count = _extentManager.numberOfItems;
+    if (count == 0) {
+      return;
+    }
+    final solution = _inContentSpace(() {
+      final clamped = index.clamp(0, count - 1);
+      final child = _liveChildForIndex(clamped);
+      final layoutOffset = child != null
+          ? childScrollOffset(child)!
+          : _extentManager.offsetForIndex(clamped);
+      return _solveOverscroll(layoutOffset, alignment, offset);
+    });
+    if (solution == null) {
+      return;
+    }
+    _trailingSpace = math.max(_trailingSpace, solution.trailing);
+    _reservedLeadingSpace = math.max(_leadingSpace, solution.leading);
+    markNeedsLayout();
+  }
 
   /// Places the leading edge of the item at [index] at [alignment] of the
   /// viewport plus [offset] pixels, before the next paint.
@@ -375,8 +583,17 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     }
   }
 
+  // Outside layout, offsets include the leading blank space.
   @override
   double? childScrollOffset(covariant RenderObject child) {
+    final offset = _contentChildScrollOffset(child);
+    if (offset == null || _contentConstraintsOverride != null) {
+      return offset;
+    }
+    return offset + _leadingSpace;
+  }
+
+  double? _contentChildScrollOffset(RenderObject child) {
     double? finish(double? value) {
       return value;
     }
@@ -935,6 +1152,43 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     return math.max(pixels, minExtent);
   }
 
+  bool _leadingSpaceChanged = false;
+
+  /// Target scroll pixels for [target] laid out at [layoutOffset]. With
+  /// [allowOverscrollToTarget] this updates the blank space it needs; a
+  /// changed leading space is reported through [_leadingSpaceChanged].
+  double? _targetPixels(double layoutOffset, _PendingItemTarget target) {
+    _leadingSpaceChanged = false;
+    if (!_allowOverscrollToTarget) {
+      return _pixelsForItemOffset(
+        layoutOffset,
+        target.alignment,
+        target.offset,
+      );
+    }
+    final solution = _solveOverscroll(
+      layoutOffset,
+      target.alignment,
+      target.offset,
+    );
+    if (solution == null) {
+      return null;
+    }
+    _trailingSpace = solution.trailing;
+    if ((solution.leading - _leadingSpace).abs() > _kTargetTolerance) {
+      _leadingSpace = solution.leading;
+      _leadingSpaceChanged = true;
+    }
+    return solution.pixels;
+  }
+
+  // Ends this layout attempt; performLayout lays out again with the new
+  // leading space.
+  void _relayoutWithNewLeadingSpace() {
+    geometry = SliverGeometry.zero;
+    childManager.didFinishLayout();
+  }
+
   /// Scroll pixels that put the leading edge of the item at [index] at
   /// [alignment] of the viewport plus [offset] pixels. Exact for laid out
   /// items, estimated otherwise. Null before the first layout.
@@ -947,11 +1201,17 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       return null;
     }
     index = index.clamp(0, count - 1);
-    final child = _liveChildForIndex(index);
-    final layoutOffset = child != null
-        ? childScrollOffset(child)!
-        : _extentManager.offsetForIndex(index);
-    return _pixelsForItemOffset(layoutOffset, alignment, offset);
+    final clamped = index;
+    return _inContentSpace(() {
+      final child = _liveChildForIndex(clamped);
+      final layoutOffset = child != null
+          ? childScrollOffset(child)!
+          : _extentManager.offsetForIndex(clamped);
+      if (_allowOverscrollToTarget) {
+        return _solveOverscroll(layoutOffset, alignment, offset)?.pixels;
+      }
+      return _pixelsForItemOffset(layoutOffset, alignment, offset);
+    });
   }
 
   /// The first at least partially visible item and the distance from its
@@ -960,7 +1220,8 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     if (!attached || geometry == null || _extentManager.isLocked) {
       return null;
     }
-    final scrollOffset = constraints.scrollOffset;
+    // Negative while blank space before the first item is visible.
+    final scrollOffset = super.constraints.scrollOffset - _leadingSpace;
     for (var c = firstChild; c != null; c = childAfter(c)) {
       final layoutOffset = _parentDataOf(c).layoutOffset;
       if (layoutOffset == null || !c.hasSize) {
@@ -1072,8 +1333,64 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
 
   @override
   void performLayout() {
-    _extentManager.performLayout(_performLayoutInner);
+    final outer = super.constraints;
+    if (_leadingSpace > 0 || _reservedLeadingSpace > 0) {
+      final correction = _updateLeadingSpace(outer);
+      if (correction != 0.0) {
+        geometry = SliverGeometry(scrollOffsetCorrection: correction);
+        return;
+      }
+    }
+    // Layout may change the leading space without a scroll correction; the
+    // content is then laid out again in the new coordinates.
+    for (var attempt = 0; ; ++attempt) {
+      final leading = _leadingSpace;
+      final content = leading > 0
+          ? _contentConstraintsFor(outer, leading)
+          : null;
+      _contentConstraintsOverride = content;
+      try {
+        _extentManager.performLayout(_performLayoutInner);
+      } finally {
+        _contentConstraintsOverride = null;
+      }
+      if (geometry!.scrollOffsetCorrection != null) {
+        break;
+      }
+      if (_leadingSpace == leading || attempt >= 2) {
+        _lastContentConstraints = content;
+        if (content != null) {
+          _applyLeadingSpaceToGeometry(outer, leading);
+        }
+        break;
+      }
+    }
+    if (_leadingSpace == 0 && _trailingSpace == 0) {
+      _pinnedIndex = null;
+    }
     _scheduleItemPositionsUpdate();
+  }
+
+  /// Applies a reserved leading space, or shrinks the leading space by the
+  /// part the viewport scrolled past. Returns the scroll offset correction
+  /// that keeps the content in place.
+  double _updateLeadingSpace(SliverConstraints outer) {
+    if (_reservedLeadingSpace > _leadingSpace) {
+      final grow = _reservedLeadingSpace - _leadingSpace;
+      _leadingSpace = _reservedLeadingSpace;
+      _reservedLeadingSpace = 0.0;
+      return grow;
+    }
+    _reservedLeadingSpace = 0.0;
+    if (holdOverscrollSpace || outer.scrollOffset <= 0) {
+      return 0.0;
+    }
+    final shrink = math.min(outer.scrollOffset, _leadingSpace);
+    _leadingSpace -= shrink;
+    if (_leadingSpace < _kTargetTolerance) {
+      _leadingSpace = 0.0;
+    }
+    return -shrink;
   }
 
   @override
@@ -1201,6 +1518,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       _didResolveInitialScrollPosition = false;
     }
 
+    layoutState.extentRevision ??= _extentManager.extentRevision;
     _extentManager.resize(totalChildCount);
 
     final bool crossAxisResizing;
@@ -1245,10 +1563,9 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     if (pendingTarget != null &&
         _liveChildForIndex(pendingIndex!) == null &&
         layoutPass.correctionCount < layoutPass.maxCorrectionCount) {
-      final pixels = _pixelsForItemOffset(
+      final pixels = _targetPixels(
         _extentManager.offsetForIndex(pendingIndex),
-        pendingTarget.alignment,
-        pendingTarget.offset,
+        pendingTarget,
       );
       final correction = pixels == null
           ? 0.0
@@ -1257,6 +1574,10 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
         ++layoutPass.correctionCount;
         geometry = SliverGeometry(scrollOffsetCorrection: correction);
         childManager.didFinishLayout();
+        return;
+      }
+      if (_leadingSpaceChanged) {
+        _relayoutWithNewLeadingSpace();
         return;
       }
     }
@@ -1275,6 +1596,8 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     final anchoredAtEnd =
         !hasHeaderAnchor &&
         pendingTarget == null &&
+        _trailingSpace == 0 &&
+        _pinnedIndex == null &&
         viewportIsScrolled &&
         (constraints.scrollOffset + constraints.remainingPaintExtent) +
                 precisionErrorTolerance >=
@@ -1316,14 +1639,18 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
         (crossAxisResizing ||
             layoutState.didAddInitialChild ||
             _extentManager.stickTarget != null);
+    // While blank space exists, the item a jump placed stays where it is.
+    final pinned = _pinnedIndex != null && pendingTarget == null
+        ? _liveChildForIndex(_pinnedIndex!)
+        : null;
     final anchor =
         !hasHeaderAnchor &&
             pendingTarget == null &&
             _childScrollOffsetEstimation == null &&
             !layoutPass.childScrollOffsetEstimation &&
             !keepsTrailingEdge &&
-            constraints.scrollOffset > 0
-        ? _leadingEdgeChild()
+            (pinned != null || constraints.scrollOffset > 0)
+        ? (pinned ?? _leadingEdgeChild())
         : null;
     final anchorLayoutOffset = anchor != null
         ? _parentDataOf(anchor).layoutOffset!
@@ -1510,8 +1837,8 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
         }
         geometry = SliverGeometry(
           paintExtent: 0,
-          maxPaintExtent: _totalExtent(),
-          scrollExtent: _totalExtent(),
+          maxPaintExtent: _totalExtent() + _trailingSpace,
+          scrollExtent: _totalExtent() + _trailingSpace,
         );
         childManager.didFinishLayout();
         return;
@@ -1563,7 +1890,8 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
 
     if (anchorNewLayoutOffset != null && anchorNewExtent != null) {
       final scrolledPast = constraints.scrollOffset - anchorLayoutOffset;
-      final newScrolledPast = crossAxisResizing && anchorExtent > 0
+      final newScrolledPast =
+          crossAxisResizing && anchorExtent > 0 && pinned == null
           ? scrolledPast / anchorExtent * anchorNewExtent
           : scrolledPast;
       scrollCorrection =
@@ -1777,11 +2105,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     if (pendingTarget != null) {
       final child = _liveChildForIndex(pendingIndex!);
       if (child != null) {
-        final pixels = _pixelsForItemOffset(
-          childScrollOffset(child)!,
-          pendingTarget.alignment,
-          pendingTarget.offset,
-        );
+        final pixels = _targetPixels(childScrollOffset(child)!, pendingTarget);
         final correction = pixels == null
             ? 0.0
             : pixels - getViewport()!.offset.pixels;
@@ -1793,7 +2117,13 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
             return;
           }
           _markNeedsLayoutDelayed(layoutPass);
+        } else if (_leadingSpaceChanged) {
+          _relayoutWithNewLeadingSpace();
+          return;
         } else {
+          _pinnedIndex = _leadingSpace > 0 || _trailingSpace > 0
+              ? pendingIndex
+              : null;
           _completePendingTarget();
         }
       } else {
@@ -1983,6 +2313,19 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     // All child offsets and extents above are now current. Replace the default
     // position policy, not its extent bookkeeping, with the header constraint.
     scrollCorrection = _headerCorrection() ?? scrollCorrection;
+    if (pinned != null && _allowOverscrollToTarget) {
+      // Keeping the pinned item in place would scroll before the content:
+      // grow the leading space instead.
+      final outerScroll = super.constraints.scrollOffset + scrollCorrection;
+      if (outerScroll < -_kTargetTolerance) {
+        _leadingSpace -= outerScroll;
+        scrollCorrection -= outerScroll;
+        if (scrollCorrection.abs() <= precisionErrorTolerance) {
+          _relayoutWithNewLeadingSpace();
+          return;
+        }
+      }
+    }
     if (scrollCorrection.abs() > precisionErrorTolerance) {
       if (layoutPass.correctionCount >= layoutPass.maxCorrectionCount) {
         _log.fine(
@@ -2043,12 +2386,25 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       }
     }
 
-    final endScrollOffset = _totalExtent();
+    if (_trailingSpace > 0 && !holdOverscrollSpace) {
+      final needed = _trailingSpaceNeeded();
+      final contentChanged =
+          layoutState.extentRevision != _extentManager.extentRevision;
+      // Scrolling only ever shrinks it; content changes recompute it so the
+      // pinned item stays put and appended items use it up.
+      _trailingSpace = contentChanged && _pinnedIndex != null
+          ? needed
+          : math.min(_trailingSpace, needed);
+      if (_trailingSpace < _kTargetTolerance) {
+        _trailingSpace = 0.0;
+      }
+    }
+    final endScrollOffset = _totalExtent() + _trailingSpace;
 
     if (!_didResolveInitialScrollPosition &&
         _initialScrollPosition == InitialScrollPosition.end &&
         totalChildCount > 0) {
-      if (_applyInitialEndCorrection(endScrollOffset, layoutPass)) return;
+      if (_applyInitialEndCorrection(_totalExtent(), layoutPass)) return;
       _didResolveInitialScrollPosition = true;
     }
     final cacheStart = constraints.scrollOffset + constraints.cacheOrigin;

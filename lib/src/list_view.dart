@@ -42,6 +42,7 @@ class SuperListView extends BoxScrollView {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
+    this.allowOverscrollToTarget = false,
   }) : childrenDelegate = SliverChildListDelegate(
          children,
          addAutomaticKeepAlives: addAutomaticKeepAlives,
@@ -82,6 +83,7 @@ class SuperListView extends BoxScrollView {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
+    this.allowOverscrollToTarget = false,
   }) : assert(itemCount == null || itemCount >= 0),
        assert(semanticChildCount == null || semanticChildCount <= itemCount!),
        childrenDelegate = SliverChildBuilderDelegate(
@@ -126,6 +128,7 @@ class SuperListView extends BoxScrollView {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
+    this.allowOverscrollToTarget = false,
   }) : assert(itemCount >= 0),
        childrenDelegate = SliverChildBuilderDelegate(
          (BuildContext context, int index) {
@@ -173,6 +176,7 @@ class SuperListView extends BoxScrollView {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
+    this.allowOverscrollToTarget = false,
   });
 
   /// A delegate that provides the children for the [ListView].
@@ -225,6 +229,9 @@ class SuperListView extends BoxScrollView {
   /// Pixels added to [initialAlignment].
   final double initialOffset;
 
+  /// See [SuperSliverList.allowOverscrollToTarget].
+  final bool allowOverscrollToTarget;
+
   @override
   Widget buildChildLayout(BuildContext context) {
     return SuperSliverList(
@@ -237,6 +244,7 @@ class SuperListView extends BoxScrollView {
       initialIndex: initialIndex,
       initialAlignment: initialAlignment,
       initialOffset: initialOffset,
+      allowOverscrollToTarget: allowOverscrollToTarget,
     );
   }
 

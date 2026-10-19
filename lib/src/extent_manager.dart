@@ -19,6 +19,10 @@ abstract class ExtentManagerDelegate {
   void requestItemPositions() {}
   bool get hasPendingTarget => false;
   ScrollPosition? get scrollPosition => null;
+  void reserveOverscrollSpace(int index, double alignment, double offset) {}
+  set holdOverscrollSpace(bool value) {}
+  ({double leading, double trailing}) get overscrollSpace =>
+      (leading: 0.0, trailing: 0.0);
   double estimateExtentForItem(int? index);
   double getOffsetToReveal(
     int index,
@@ -144,13 +148,20 @@ class ExtentManager with ChangeNotifier {
 
     _extentList.setExtent(index, extent, isEstimation: isEstimation);
 
+    if (extentChanged) {
+      ++extentRevision;
+    }
     if (extentChanged || (!isEstimation && wasDirty)) {
       _isModified = true;
       _extentsModified = true;
     }
   }
 
+  /// Incremented whenever an extent value or the item count changes.
+  int extentRevision = 0;
+
   void markAllDirty() {
+    ++extentRevision;
     _afterCorrection = 0.0;
     _beforeCorrection = 0.0;
     _isModified = true;
@@ -174,6 +185,7 @@ class ExtentManager with ChangeNotifier {
     }
     _isModified = true;
     _extentsModified = true;
+    ++extentRevision;
     _extentList.resize(newSize, delegate.estimateExtentForItem);
   }
 

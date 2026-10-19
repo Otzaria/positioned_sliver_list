@@ -134,6 +134,11 @@ class _ScrollToIndex implements PositioningOperation {
   }
 
   void start(ScrollPosition position, Duration duration, Curve curve) {
+    final list = controller._delegate?.delegate;
+    // Blank space the target needs must exist before the animation can reach
+    // it, and must not shrink while the animation moves through content.
+    list?.reserveOverscrollSpace(index, alignment, offset);
+    list?.holdOverscrollSpace = true;
     final animation = TargetScrollAnimation.start(
       position: position,
       target: _target,
@@ -143,6 +148,7 @@ class _ScrollToIndex implements PositioningOperation {
     _animation = animation;
     animation.done.then((_) {
       final delegate = controller._delegate;
+      delegate?.delegate.holdOverscrollSpace = false;
       if (animation.reachedTarget && _isCurrent && delegate != null) {
         delegate.delegate
             .jumpToIndex(index, alignment, offset)
@@ -278,6 +284,11 @@ class ListController extends ChangeNotifier {
   /// it. Pass `-anchor.offsetInItem` as the offset of [jumpToIndex] to restore
   /// it.
   ListAnchor? get anchor => _delegate?.delegate.currentAnchor;
+
+  /// Blank space currently added before the first and after the last item by
+  /// a jump with [SuperSliverList.allowOverscrollToTarget].
+  ({double leading, double trailing}) get overscrollSpace =>
+      _delegate?.delegate.overscrollSpace ?? (leading: 0.0, trailing: 0.0);
 
   /// The scroll position of the viewport containing the attached list.
   ScrollPosition? get scrollPosition => _delegate?.delegate.scrollPosition;
@@ -812,6 +823,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
+    this.allowOverscrollToTarget = false,
   });
 
   /// Creates a SuperSliverList from widget builder.
@@ -831,6 +843,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
+    this.allowOverscrollToTarget = false,
     bool addAutomaticKeepAlives = true,
     bool addRepaintBoundaries = true,
     bool addSemanticIndexes = true,
@@ -863,6 +876,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
+    this.allowOverscrollToTarget = false,
     int? itemCount,
     bool addAutomaticKeepAlives = true,
     bool addRepaintBoundaries = true,
@@ -913,6 +927,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
+    this.allowOverscrollToTarget = false,
     bool addAutomaticKeepAlives = true,
     bool addRepaintBoundaries = true,
     bool addSemanticIndexes = true,
@@ -977,6 +992,17 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
   /// Pixels added to [initialAlignment].
   final double initialOffset;
 
+  /// Whether a jump or animation to an index (and [initialIndex]) may add
+  /// blank space before the first or after the last item so that the target
+  /// lands exactly where requested, for example the last item at the top of
+  /// the viewport.
+  ///
+  /// The space only shrinks when the user scrolls back towards the content,
+  /// and is gone once the viewport is back within the content. Content
+  /// appended at the end uses it up. The next programmatic jump computes it
+  /// again. Intended for a list that is the only sliver of its viewport.
+  final bool allowOverscrollToTarget;
+
   static SuperSliverListLayoutBudget layoutBudget =
       _TimeSuperSliverListLayoutBudget(budget: const Duration(milliseconds: 3));
 
@@ -997,6 +1023,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
       initialIndex: initialIndex,
       initialAlignment: initialAlignment,
       initialOffset: initialOffset,
+      allowOverscrollToTarget: allowOverscrollToTarget,
     );
   }
 
@@ -1013,6 +1040,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     renderSliverList.delayPopulatingCacheArea = delayPopulatingCacheArea;
     renderSliverList.layoutKeptAliveChildren = layoutKeptAliveChildren;
     renderSliverList.initialScrollPosition = initialScrollPosition;
+    renderSliverList.allowOverscrollToTarget = allowOverscrollToTarget;
   }
 }
 

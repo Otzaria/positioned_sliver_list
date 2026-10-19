@@ -89,6 +89,25 @@ class SuperSliverMultiBoxAdaptorElement extends SliverMultiBoxAdaptorElement
   }
 
   @override
+  void reserveOverscrollSpace(int index, double alignment, double offset) {
+    if (_hasRenderObject) {
+      renderObject.reserveOverscrollSpace(index, alignment, offset);
+    }
+  }
+
+  @override
+  set holdOverscrollSpace(bool value) {
+    if (_hasRenderObject) {
+      renderObject.holdOverscrollSpace = value;
+    }
+  }
+
+  @override
+  ({double leading, double trailing}) get overscrollSpace => _hasRenderObject
+      ? renderObject.overscrollSpace
+      : (leading: 0.0, trailing: 0.0);
+
+  @override
   bool get hasPendingTarget =>
       _hasRenderObject && renderObject.hasPendingTarget;
 
