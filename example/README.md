@@ -1,16 +1,12 @@
-# example
+# positioned_sliver_list examples
 
-A new Flutter project.
+- `lib/main.dart`: the `SuperSliverList` demo app (item list and long document
+  with sticky headers, jumping and animating to items, extent precalculation).
+- `lib/positioned_list_example.dart`: the `scrollable_positioned_list`
+  compatible API on 20,000 paragraphs, with a `Scrollbar` on the list's
+  `ScrollController`, `jumpTo`, `scrollTo` and an `ItemPositionsListener`.
 
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```sh
+flutter run                                    # demo app
+flutter run -t lib/positioned_list_example.dart  # compatibility API
+```

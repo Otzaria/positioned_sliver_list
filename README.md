@@ -136,7 +136,11 @@ By default a target is clamped to the scroll range: the last item cannot be move
 
 `listController.itemPositions` is a `ValueListenable<List<ItemPosition>>` with the visible items and their leading and trailing edges as fractions of the viewport, updated after every frame in which they changed (only while it has listeners). `listController.anchor` is the first visible item and how far the viewport edge is inside it; `jumpToIndex(anchor.index, offset: -anchor.offsetInItem)` restores it.
 
-`animateToItem` keeps its `getOffsetToReveal` alignment and now returns an `AnimationHandle`, which is also a `Future<void>`.
+`animateToItem` keeps its `getOffsetToReveal` alignment and now returns an `AnimationHandle`, which is also a `Future<void>`. When you do not await it, wrap it in `unawaited(...)` to satisfy the `unawaited_futures` lint.
+
+Index based positioning is supported for a list that grows forward from the viewport's center, which is the usual case; for a sliver placed before the `center` of a `CustomScrollView` a jump is ignored with a logged warning.
+
+Each layout pass may correct the scroll offset a limited number of times (a viewport throws after 10 layout cycles per sliver). When a pass reaches that limit, the remaining correction is applied in the next frame.
 
 ## scrollable_positioned_list compatibility
 
@@ -165,6 +169,8 @@ Scrollbar(
 itemScrollController.jumpTo(index: 500, alignment: 0.1);
 await itemScrollController.scrollTo(index: 9000, duration: const Duration(milliseconds: 500));
 ```
+
+Provide `estimateExtent` when you can: items that were never laid out are estimated at 100 pixels otherwise, which makes the scrollbar less steady (jumps are exact either way).
 
 Additions to the original API: `scrollController`, `estimateExtent`, `estimatedSeparatorExtent`, `initialOffset`, `restorePosition`, `allowOverscrollToTarget`, an `offset` for `jumpTo`/`scrollTo`, `ItemScrollController.scrollController`/`listController`/`anchor`, and `ScrollOffsetController.jumpBy`/`isAttached`.
 
