@@ -1,0 +1,27 @@
+# Tests ported from scrollable_positioned_list keep their original code style.
+include: ../../analysis_options.yaml
+
+analyzer:
+  language:
+    strict-casts: false
+    strict-inference: false
+    strict-raw-types: false
+  errors:
+    unnecessary_cast: ignore
+    deprecated_member_use: ignore
+
+linter:
+  rules:
+    prefer_double_quotes: false
+    prefer_single_quotes: false
+    prefer_const_constructors: false
+    prefer_const_declarations: false
+    prefer_final_locals: false
+    unawaited_futures: false
+    avoid_dynamic_calls: false
+    directives_ordering: false
+    prefer_typing_uninitialized_variables: false
+    strict_top_level_inference: false
+    type_annotate_public_apis: false
+    unreachable_from_main: false
+    avoid_escaping_inner_quotes: false
