@@ -766,6 +766,10 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
   // dirty and registered with the pipeline owner before the sliver itself is
   // marked. Clean unrelated subtrees still short-circuit in `layout()`, so
   // this does not force a full-tree relayout.
+  //
+  // A RenderViewport is sized by its parent and therefore a relayout
+  // boundary, so the chain stops there. Marking the ancestors above it would
+  // leave them dirty between frames, where hit testing asserts on them.
   void _markNeedsLayoutWithAncestors() {
     if (!attached) {
       return;
@@ -773,6 +777,9 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     final chain = <RenderObject>[];
     for (RenderObject? node = this; node != null; node = node.parent) {
       chain.add(node);
+      if (node is RenderViewport) {
+        break;
+      }
     }
     for (final node in chain.reversed) {
       node.markNeedsLayout();
