@@ -21,8 +21,8 @@ abstract class ExtentManagerDelegate {
 @immutable
 class ItemRange {
   const ItemRange(this.first, this.last)
-      : assert(first >= 0),
-        assert(last >= first);
+    : assert(first >= 0),
+      assert(last >= first);
 
   final int first;
   final int last;
@@ -93,9 +93,10 @@ class ExtentManager with ChangeNotifier {
     // Return 1.0 (no correction) as a safe fallback
     if (!result.isFinite) {
       assert(
-          false,
-          "correctionPercentage resulted in non-finite value: "
-          "beforeCorrection=$_beforeCorrection, afterCorrection=$_afterCorrection");
+        false,
+        "correctionPercentage resulted in non-finite value: "
+        "beforeCorrection=$_beforeCorrection, afterCorrection=$_afterCorrection",
+      );
       return 1.0;
     }
 
@@ -146,9 +147,7 @@ class ExtentManager with ChangeNotifier {
   @pragma("vm:prefer-inline")
   double getExtent(int index) => _extentList[index];
 
-  void resize(
-    int newSize,
-  ) {
+  void resize(int newSize) {
     if (newSize == _extentList.length) {
       return;
     }

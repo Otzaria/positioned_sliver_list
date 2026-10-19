@@ -17,8 +17,8 @@ class ListHeader extends StatelessWidget {
     return SliverPinnedHeader(
       child: Container(
         color: primary
-            ? const Color(0xFFF84F39).withOpacity(0.9)
-            : Colors.blueGrey.shade300.withOpacity(0.9),
+            ? const Color(0xFFF84F39).withValues(alpha: 0.9)
+            : Colors.blueGrey.shade300.withValues(alpha: 0.9),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         child: SafeArea(
           left: false,

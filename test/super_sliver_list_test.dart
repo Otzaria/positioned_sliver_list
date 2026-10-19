@@ -5,10 +5,8 @@ import "package:flutter/material.dart";
 import "package:flutter/rendering.dart";
 import "package:flutter_test/flutter_test.dart";
 import "package:logging/logging.dart";
-import "package:sliver_tools/sliver_tools.dart";
 import "package:positioned_sliver_list/positioned_sliver_list.dart";
-
-// ignore: deprecated_member_use
+import "package:sliver_tools/sliver_tools.dart";
 import "package:test_api/src/backend/invoker.dart" as invoker;
 
 import "fuzzer.dart";
@@ -54,7 +52,7 @@ class _TestLayoutBudget extends SuperSliverListLayoutBudget {
 
 class _InvalidateChildDuringLayout extends SingleChildRenderObjectWidget {
   const _InvalidateChildDuringLayout({required Widget sliver})
-      : super(child: sliver);
+    : super(child: sliver);
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
@@ -126,19 +124,22 @@ void main() {
       final configuration = SliverListConfiguration.generate(
         slivers: 1,
         itemsPerSliver: (_) => 20,
-        itemHeight: (_, __) => 300,
+        itemHeight: (_, _) => 300,
         viewportHeight: 500,
       );
 
       final ScrollController controller = ScrollController(
-          initialScrollOffset: configuration.bottomScrollOffsetInitial);
+        initialScrollOffset: configuration.bottomScrollOffsetInitial,
+      );
       addTearDown(controller.dispose);
 
-      await tester.pumpWidget(_buildSliverList(
-        configuration,
-        preciseLayout: true,
-        controller: controller,
-      ));
+      await tester.pumpWidget(
+        _buildSliverList(
+          configuration,
+          preciseLayout: true,
+          controller: controller,
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(controller.offset, roughlyEquals(configuration.maxScrollExtent));
@@ -157,11 +158,9 @@ void main() {
         viewportHeight: configuration.viewportHeight,
       );
 
-      await tester.pumpWidget(_buildSliverList(
-        reversed,
-        preciseLayout: true,
-        controller: controller,
-      ));
+      await tester.pumpWidget(
+        _buildSliverList(reversed, preciseLayout: true, controller: controller),
+      );
       final int frames = await tester.pumpAndSettle();
       // ensures that there is no (animated) bouncing of the scrollable
       expect(frames, 1);
@@ -186,20 +185,23 @@ void main() {
       final configuration = SliverListConfiguration.generate(
         slivers: 1,
         itemsPerSliver: (_) => 20,
-        itemHeight: (_, __) => 300,
+        itemHeight: (_, _) => 300,
         itemValue: (_, index) => index,
         viewportHeight: 500,
       );
 
       final ScrollController controller = ScrollController(
-          initialScrollOffset: configuration.bottomScrollOffsetInitial);
+        initialScrollOffset: configuration.bottomScrollOffsetInitial,
+      );
       addTearDown(controller.dispose);
 
-      await tester.pumpWidget(_buildSliverList(
-        configuration,
-        preciseLayout: true,
-        controller: controller,
-      ));
+      await tester.pumpWidget(
+        _buildSliverList(
+          configuration,
+          preciseLayout: true,
+          controller: controller,
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(controller.offset, roughlyEquals(configuration.maxScrollExtent));
@@ -211,16 +213,18 @@ void main() {
       final configuration2 = SliverListConfiguration.generate(
         slivers: 1,
         itemsPerSliver: (_) => 20,
-        itemHeight: (_, __) => 300,
+        itemHeight: (_, _) => 300,
         itemValue: (_, index) => index + 100,
         viewportHeight: 500,
       );
 
-      await tester.pumpWidget(_buildSliverList(
-        configuration2,
-        controller: controller,
-        preciseLayout: true,
-      ));
+      await tester.pumpWidget(
+        _buildSliverList(
+          configuration2,
+          controller: controller,
+          preciseLayout: true,
+        ),
+      );
       final int frames = await tester.pumpAndSettle();
       // ensures that there is no (animated) bouncing of the scrollable
       expect(frames, 1);
@@ -246,24 +250,28 @@ void main() {
       expect(find.text("Tile 0:119"), findsNothing);
     });
 
-    testWidgets("replace with shorter children list (with keys)",
-        (tester) async {
+    testWidgets("replace with shorter children list (with keys)", (
+      tester,
+    ) async {
       final configuration = SliverListConfiguration.generate(
         slivers: 1,
         itemsPerSliver: (_) => 20,
-        itemHeight: (_, __) => 300,
+        itemHeight: (_, _) => 300,
         viewportHeight: 500,
       );
 
       final ScrollController controller = ScrollController(
-          initialScrollOffset: configuration.bottomScrollOffsetInitial);
+        initialScrollOffset: configuration.bottomScrollOffsetInitial,
+      );
       addTearDown(controller.dispose);
 
-      await tester.pumpWidget(_buildSliverList(
-        configuration,
-        controller: controller,
-        preciseLayout: true,
-      ));
+      await tester.pumpWidget(
+        _buildSliverList(
+          configuration,
+          controller: controller,
+          preciseLayout: true,
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(controller.offset, roughlyEquals(configuration.maxScrollExtent));
@@ -273,17 +281,21 @@ void main() {
       expect(find.text("Tile 0:18"), findsOneWidget);
       expect(find.text("Tile 0:19"), findsOneWidget);
 
-      final configuration2 = configuration.copyWith(slivers: [
-        configuration.slivers.first.copyWith(
-          items: configuration.slivers.first.items.sublist(0, 19),
-        ),
-      ]);
+      final configuration2 = configuration.copyWith(
+        slivers: [
+          configuration.slivers.first.copyWith(
+            items: configuration.slivers.first.items.sublist(0, 19),
+          ),
+        ],
+      );
 
-      await tester.pumpWidget(_buildSliverList(
-        configuration2,
-        controller: controller,
-        preciseLayout: true,
-      ));
+      await tester.pumpWidget(
+        _buildSliverList(
+          configuration2,
+          controller: controller,
+          preciseLayout: true,
+        ),
+      );
       final int frames = await tester.pumpAndSettle();
       expect(frames, 1); // No animation when content shrinks suddenly.
 
@@ -295,8 +307,9 @@ void main() {
       expect(find.text("Tile 0:19"), findsNothing);
     });
 
-    testWidgets("should layout first child in case of child reordering",
-        (tester) async {
+    testWidgets("should layout first child in case of child reordering", (
+      tester,
+    ) async {
       // Regression test for https://github.com/flutter/flutter/issues/35904.
       List<String> items = <String>["1", "2"];
       final ScrollController controller1 = ScrollController();
@@ -312,22 +325,24 @@ void main() {
       items = items.reversed.toList();
       final ScrollController controller2 = ScrollController();
       addTearDown(controller2.dispose);
-      await tester
-          .pumpWidget(_buildSliverListRenderWidgetChild(items, controller2));
+      await tester.pumpWidget(
+        _buildSliverListRenderWidgetChild(items, controller2),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text("Tile 1"), findsOneWidget);
       expect(find.text("Tile 2"), findsOneWidget);
     });
 
-    testWidgets("should recalculate inaccurate layout offset case 1",
-        (tester) async {
+    testWidgets("should recalculate inaccurate layout offset case 1", (
+      tester,
+    ) async {
       // Regression test for https://github.com/flutter/flutter/issues/42142.
 
       final configuration = SliverListConfiguration.generate(
         slivers: 1,
         itemsPerSliver: (_) => 20,
-        itemHeight: (_, __) => 50,
+        itemHeight: (_, _) => 50,
         viewportHeight: 200,
       );
       final ScrollController controller = ScrollController();
@@ -389,13 +404,14 @@ void main() {
       expect(find.text("Tile 0:3"), findsNothing);
     });
 
-    testWidgets("should recalculate inaccurate layout offset case 2",
-        (tester) async {
+    testWidgets("should recalculate inaccurate layout offset case 2", (
+      tester,
+    ) async {
       // Regression test for https://github.com/flutter/flutter/issues/42142.
       final configuration = SliverListConfiguration.generate(
         slivers: 1,
         itemsPerSliver: (_) => 20,
-        itemHeight: (_, __) => 50,
+        itemHeight: (_, _) => 50,
         viewportHeight: 195,
       );
       final ScrollController controller = ScrollController();
@@ -427,9 +443,7 @@ void main() {
       final swap = items[19];
       items[19] = items[3];
       items[3] = swap;
-      final configuration2 = configuration.copyWith(
-        viewportHeight: 200,
-      );
+      final configuration2 = configuration.copyWith(viewportHeight: 200);
 
       await tester.pumpWidget(
         _buildSliverList(
@@ -452,82 +466,78 @@ void main() {
     });
 
     testWidgets(
-        "should start to perform layout from the initial child when there is no valid offset",
-        (tester) async {
-      // Regression test for https://github.com/flutter/flutter/issues/66198.
-      bool isShow = true;
-      final ScrollController controller = ScrollController();
-      addTearDown(controller.dispose);
+      "should start to perform layout from the initial child when there is no valid offset",
+      (tester) async {
+        // Regression test for https://github.com/flutter/flutter/issues/66198.
+        bool isShow = true;
+        final ScrollController controller = ScrollController();
+        addTearDown(controller.dispose);
 
-      Widget buildSliverList(ScrollController controller) {
-        return Directionality(
-          textDirection: TextDirection.ltr,
-          child: Center(
-            child: SizedBox(
-              height: 200,
-              child: CustomScrollView(
-                controller: controller,
-                slivers: <Widget>[
-                  SuperSliverList(
-                    extentPrecalculationPolicy:
-                        _SimpleExtentPrecalculatePolicy(precalculate: true),
-                    delegate: SliverChildListDelegate(
-                      [
+        Widget buildSliverList(ScrollController controller) {
+          return Directionality(
+            textDirection: TextDirection.ltr,
+            child: Center(
+              child: SizedBox(
+                height: 200,
+                child: CustomScrollView(
+                  controller: controller,
+                  slivers: <Widget>[
+                    SuperSliverList(
+                      extentPrecalculationPolicy:
+                          _SimpleExtentPrecalculatePolicy(precalculate: true),
+                      delegate: SliverChildListDelegate([
                         if (isShow)
                           for (int i = 0; i < 20; i++)
-                            SizedBox(
-                              height: 50,
-                              child: Text("Tile 0:$i"),
-                            ),
+                            SizedBox(height: 50, child: Text("Tile 0:$i")),
                         const SizedBox(), // Use this widget to occupy the position where the offset is 0 when rebuild
                         const SizedBox(key: Key("key0"), height: 50.0),
                         const SizedBox(key: Key("key1"), height: 50.0),
-                      ],
+                      ]),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      }
+          );
+        }
 
-      await tester.pumpWidget(buildSliverList(controller));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(buildSliverList(controller));
+        await tester.pumpAndSettle();
 
-      // Scrolling to the bottom.
-      await tester.drag(find.text("Tile 0:2"), const Offset(0.0, -1000.0));
-      await tester.pumpAndSettle();
+        // Scrolling to the bottom.
+        await tester.drag(find.text("Tile 0:2"), const Offset(0.0, -1000.0));
+        await tester.pumpAndSettle();
 
-      // Viewport should be scrolled to the end of list.
-      expect(controller.offset, roughlyEquals(900.0));
-      expect(find.text("Tile 0:17"), findsNothing);
-      expect(find.text("Tile 0:18"), findsOneWidget);
-      expect(find.text("Tile 0:19"), findsOneWidget);
-      expect(find.byKey(const Key("key0")), findsOneWidget);
-      expect(find.byKey(const Key("key1")), findsOneWidget);
+        // Viewport should be scrolled to the end of list.
+        expect(controller.offset, roughlyEquals(900.0));
+        expect(find.text("Tile 0:17"), findsNothing);
+        expect(find.text("Tile 0:18"), findsOneWidget);
+        expect(find.text("Tile 0:19"), findsOneWidget);
+        expect(find.byKey(const Key("key0")), findsOneWidget);
+        expect(find.byKey(const Key("key1")), findsOneWidget);
 
-      // Trigger rebuild.
-      isShow = false;
-      await tester.pumpWidget(buildSliverList(controller));
+        // Trigger rebuild.
+        isShow = false;
+        await tester.pumpWidget(buildSliverList(controller));
 
-      // After rebuild, [ContainerRenderObjectMixin] has two children, and
-      // neither of them has a valid layout offset.
-      // SliverList can layout normally without any assert or dead loop.
-      // Only the 'SizeBox' show in the viewport.
-      expect(controller.offset, 0.0);
-      expect(find.text("Tile 0:0"), findsNothing);
-      expect(find.text("Tile 0:19"), findsNothing);
-      expect(find.byKey(const Key("key0")), findsOneWidget);
-      expect(find.byKey(const Key("key1")), findsOneWidget);
-    });
+        // After rebuild, [ContainerRenderObjectMixin] has two children, and
+        // neither of them has a valid layout offset.
+        // SliverList can layout normally without any assert or dead loop.
+        // Only the 'SizeBox' show in the viewport.
+        expect(controller.offset, 0.0);
+        expect(find.text("Tile 0:0"), findsNothing);
+        expect(find.text("Tile 0:19"), findsNothing);
+        expect(find.byKey(const Key("key0")), findsOneWidget);
+        expect(find.byKey(const Key("key1")), findsOneWidget);
+      },
+    );
 
     testWidgets("initially empty list", (tester) async {
       await tester.pumpWidget(
         _buildSliverList(
           SliverListConfiguration.generate(
             itemsPerSliver: (_) => 0,
-            itemHeight: (_, __) => 100,
+            itemHeight: (_, _) => 100,
             viewportHeight: 500,
           ),
           preciseLayout: false,
@@ -537,7 +547,7 @@ void main() {
         _buildSliverList(
           SliverListConfiguration.generate(
             itemsPerSliver: (_) => 10,
-            itemHeight: (_, __) => 100,
+            itemHeight: (_, _) => 100,
             viewportHeight: 500,
           ),
           preciseLayout: false,
@@ -551,16 +561,12 @@ void main() {
       final list = SliverListConfiguration.generate(
         slivers: 3,
         itemsPerSliver: (_) => 1,
-        itemHeight: (_, __) => 10,
+        itemHeight: (_, _) => 10,
         viewportHeight: 500,
         pinnedHeaderHeight: (i) => i == 0 ? 100 : 0,
       );
       await tester.pumpWidget(
-        _buildSliverList(
-          list,
-          preciseLayout: false,
-          shrinkWrap: true,
-        ),
+        _buildSliverList(list, preciseLayout: false, shrinkWrap: true),
       );
       final frames = await tester.pumpAndSettle();
       expect(frames, 1);
@@ -570,84 +576,133 @@ void main() {
       final list = SliverListConfiguration.generate(
         slivers: 3,
         itemsPerSliver: (_) => 6,
-        itemHeight: (_, __) => 100,
+        itemHeight: (_, _) => 100,
         viewportHeight: 500,
         pinnedHeaderHeight: (i) => i == 0 ? 100 : 0,
       );
       final controller = ScrollController();
       await tester.pumpWidget(
-        _buildSliverList(
-          list,
-          controller: controller,
-          preciseLayout: false,
-        ),
+        _buildSliverList(list, controller: controller, preciseLayout: false),
       );
-      expect(list.slivers[0].listController.visibleRange, equals(const ItemRange(0, 3)));
-      expect(list.slivers[0].listController.unobstructedVisibleRange,
-          equals(const ItemRange(0, 3)));
+      expect(
+        list.slivers[0].listController.visibleRange,
+        equals(const ItemRange(0, 3)),
+      );
+      expect(
+        list.slivers[0].listController.unobstructedVisibleRange,
+        equals(const ItemRange(0, 3)),
+      );
       expect(list.slivers[1].listController.visibleRange, isNull);
 
       controller.jumpTo(100);
       await tester.pump();
 
-      expect(list.slivers[0].listController.visibleRange, equals(const ItemRange(0, 4)));
-      expect(list.slivers[0].listController.unobstructedVisibleRange,
-          equals(const ItemRange(1, 4)));
+      expect(
+        list.slivers[0].listController.visibleRange,
+        equals(const ItemRange(0, 4)),
+      );
+      expect(
+        list.slivers[0].listController.unobstructedVisibleRange,
+        equals(const ItemRange(1, 4)),
+      );
       expect(list.slivers[1].listController.visibleRange, isNull);
 
       controller.jumpTo(199);
       await tester.pump();
 
-      expect(list.slivers[0].listController.visibleRange, equals(const ItemRange(0, 5)));
-      expect(list.slivers[0].listController.unobstructedVisibleRange,
-          equals(const ItemRange(1, 5)));
+      expect(
+        list.slivers[0].listController.visibleRange,
+        equals(const ItemRange(0, 5)),
+      );
+      expect(
+        list.slivers[0].listController.unobstructedVisibleRange,
+        equals(const ItemRange(1, 5)),
+      );
       expect(list.slivers[1].listController.visibleRange, isNull);
 
       controller.jumpTo(200);
       await tester.pump();
 
-      expect(list.slivers[0].listController.visibleRange, equals(const ItemRange(1, 5)));
-      expect(list.slivers[0].listController.unobstructedVisibleRange,
-          equals(const ItemRange(2, 5)));
+      expect(
+        list.slivers[0].listController.visibleRange,
+        equals(const ItemRange(1, 5)),
+      );
+      expect(
+        list.slivers[0].listController.unobstructedVisibleRange,
+        equals(const ItemRange(2, 5)),
+      );
       expect(list.slivers[1].listController.visibleRange, isNull);
 
       controller.jumpTo(299);
       await tester.pump();
 
-      expect(list.slivers[0].listController.visibleRange, equals(const ItemRange(1, 5)));
-      expect(list.slivers[0].listController.unobstructedVisibleRange,
-          equals(const ItemRange(2, 5)));
-      expect(list.slivers[1].listController.visibleRange, equals(const ItemRange(0, 0)));
-      expect(list.slivers[1].listController.unobstructedVisibleRange,
-          equals(const ItemRange(0, 0)));
+      expect(
+        list.slivers[0].listController.visibleRange,
+        equals(const ItemRange(1, 5)),
+      );
+      expect(
+        list.slivers[0].listController.unobstructedVisibleRange,
+        equals(const ItemRange(2, 5)),
+      );
+      expect(
+        list.slivers[1].listController.visibleRange,
+        equals(const ItemRange(0, 0)),
+      );
+      expect(
+        list.slivers[1].listController.unobstructedVisibleRange,
+        equals(const ItemRange(0, 0)),
+      );
 
       controller.jumpTo(300);
       await tester.pump();
 
-      expect(list.slivers[0].listController.visibleRange, equals(const ItemRange(2, 5)));
-      expect(list.slivers[0].listController.unobstructedVisibleRange,
-          equals(const ItemRange(3, 5)));
-      expect(list.slivers[1].listController.visibleRange, equals(const ItemRange(0, 0)));
-      expect(list.slivers[1].listController.unobstructedVisibleRange,
-          equals(const ItemRange(0, 0)));
+      expect(
+        list.slivers[0].listController.visibleRange,
+        equals(const ItemRange(2, 5)),
+      );
+      expect(
+        list.slivers[0].listController.unobstructedVisibleRange,
+        equals(const ItemRange(3, 5)),
+      );
+      expect(
+        list.slivers[1].listController.visibleRange,
+        equals(const ItemRange(0, 0)),
+      );
+      expect(
+        list.slivers[1].listController.unobstructedVisibleRange,
+        equals(const ItemRange(0, 0)),
+      );
 
       controller.jumpTo(600);
       await tester.pump();
 
-      expect(list.slivers[0].listController.visibleRange, equals(const ItemRange(5, 5)));
+      expect(
+        list.slivers[0].listController.visibleRange,
+        equals(const ItemRange(5, 5)),
+      );
       expect(list.slivers[0].listController.unobstructedVisibleRange, isNull);
-      expect(list.slivers[1].listController.visibleRange, equals(const ItemRange(0, 3)));
-      expect(list.slivers[1].listController.unobstructedVisibleRange,
-          equals(const ItemRange(0, 3)));
+      expect(
+        list.slivers[1].listController.visibleRange,
+        equals(const ItemRange(0, 3)),
+      );
+      expect(
+        list.slivers[1].listController.unobstructedVisibleRange,
+        equals(const ItemRange(0, 3)),
+      );
 
       controller.jumpTo(700);
       await tester.pump();
 
       expect(list.slivers[0].listController.visibleRange, isNull);
       expect(list.slivers[0].listController.unobstructedVisibleRange, isNull);
-      expect(list.slivers[1].listController.visibleRange, equals(const ItemRange(0, 4)));
-      expect(list.slivers[1].listController.unobstructedVisibleRange,
-          equals(const ItemRange(1, 4)));
+      expect(
+        list.slivers[1].listController.visibleRange,
+        equals(const ItemRange(0, 4)),
+      );
+      expect(
+        list.slivers[1].listController.unobstructedVisibleRange,
+        equals(const ItemRange(1, 4)),
+      );
     });
 
     testWidgets("kept alive widgets are laid out", (tester) async {
@@ -686,9 +741,9 @@ void main() {
                           child: Container(),
                         ),
                       ),
-                      for (int i = 0; i < 100; ++i) const SizedBox(height: 100)
+                      for (int i = 0; i < 100; ++i) const SizedBox(height: 100),
                     ]),
-                  )
+                  ),
                 ],
               ),
             ),
@@ -707,8 +762,9 @@ void main() {
       await tester.pump();
       {
         final renderBox = key2.currentContext!.findRenderObject()! as RenderBox;
-        final parentData = renderBox.parent!.parent!.parentData!
-            as SliverMultiBoxAdaptorParentData;
+        final parentData =
+            renderBox.parent!.parent!.parentData!
+                as SliverMultiBoxAdaptorParentData;
         expect(parentData.keepAlive, isTrue);
         expect(renderBox.size, equals(const Size(500, 100)));
         final position = renderBox.localToGlobal(Offset.zero);
@@ -716,12 +772,15 @@ void main() {
       }
       await tester.pumpWidget(build(600));
       expect(
-          controller.position.pixels, 1040); // Correction for kept alive items
+        controller.position.pixels,
+        1040,
+      ); // Correction for kept alive items
       controller.jumpTo(1000); // undo scroll offset correction
       {
         final renderBox = key2.currentContext!.findRenderObject()! as RenderBox;
-        final parentData = renderBox.parent!.parent!.parentData!
-            as SliverMultiBoxAdaptorParentData;
+        final parentData =
+            renderBox.parent!.parent!.parentData!
+                as SliverMultiBoxAdaptorParentData;
         expect(parentData.keepAlive, isTrue);
         expect(renderBox.size, equals(const Size(600, 120)));
         final position = renderBox.localToGlobal(Offset.zero);
@@ -741,35 +800,29 @@ void main() {
             child: SizedBox(
               height: 500,
               child: CustomScrollView(
-                cacheExtent: 200,
+                scrollCacheExtent: const ScrollCacheExtent.pixels(200),
                 physics: const ClampingScrollPhysics(),
                 controller: controller,
                 slivers: [
                   SuperSliverList(
                     delayPopulatingCacheArea: true,
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        return SizedBox(
-                          key: keys0[index],
-                          height: 100,
-                          child: Text("Tile 0:$index"),
-                        );
-                      },
-                      childCount: keys0.length,
-                    ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      return SizedBox(
+                        key: keys0[index],
+                        height: 100,
+                        child: Text("Tile 0:$index"),
+                      );
+                    }, childCount: keys0.length),
                   ),
                   SuperSliverList(
                     delayPopulatingCacheArea: true,
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        return SizedBox(
-                          key: keys1[index],
-                          height: 100,
-                          child: Text("Tile 0:$index"),
-                        );
-                      },
-                      childCount: keys1.length,
-                    ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      return SizedBox(
+                        key: keys1[index],
+                        height: 100,
+                        child: Text("Tile 0:$index"),
+                      );
+                    }, childCount: keys1.length),
                   ),
                 ],
               ),
@@ -823,22 +876,19 @@ void main() {
             child: SizedBox(
               height: 500,
               child: CustomScrollView(
-                cacheExtent: 200,
+                scrollCacheExtent: const ScrollCacheExtent.pixels(200),
                 physics: const ClampingScrollPhysics(),
                 controller: controller,
                 slivers: [
                   SuperSliverList(
                     delayPopulatingCacheArea: false,
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        return SizedBox(
-                          key: keys[index],
-                          height: 100,
-                          child: Text("Tile 0:$index"),
-                        );
-                      },
-                      childCount: keys.length,
-                    ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      return SizedBox(
+                        key: keys[index],
+                        height: 100,
+                        child: Text("Tile 0:$index"),
+                      );
+                    }, childCount: keys.length),
                   ),
                 ],
               ),
@@ -874,20 +924,23 @@ void main() {
       final configuration = SliverListConfiguration.generate(
         slivers: 1,
         itemsPerSliver: (_) => 50,
-        itemHeight: (_, __) => 30,
+        itemHeight: (_, _) => 30,
         viewportHeight: 500,
       );
-      final ScrollController controller =
-          ScrollController(initialScrollOffset: 0);
+      final ScrollController controller = ScrollController(
+        initialScrollOffset: 0,
+      );
       addTearDown(controller.dispose);
 
-      await tester.pumpWidget(_buildSliverList(
-        configuration,
-        preciseLayout: false,
-        controller: controller,
-        extentEstimation: (_, __) => 200,
-        delayPopulatingCacheArea: false,
-      ));
+      await tester.pumpWidget(
+        _buildSliverList(
+          configuration,
+          preciseLayout: false,
+          controller: controller,
+          extentEstimation: (_, _) => 200,
+          delayPopulatingCacheArea: false,
+        ),
+      );
       await tester.pumpAndSettle();
 
       // This must not cause maximum layout cycle exceeded exception.
@@ -895,92 +948,95 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets("delayed layout pass recovers sliver invalidated during layout",
-        // The frame that leaves the sliver dirty would trip an unrelated
-        // assert in the semantics flush ('!childSemantics.renderObject
-        // ._needsLayout') before the delayed layout pass gets a chance to run.
-        semanticsEnabled: false, (tester) async {
-      // When a scroll offset correction is requested during layout,
-      // RenderSuperSliverList.layout marks itself dirty through the parent's
-      // invokeLayoutCallback. If the viewport then finishes the frame without
-      // laying the sliver out again (this can happen when dragging the
-      // scrollbar fast), the dirty flag is set but was never propagated to the
-      // pipeline owner. The post-frame callback scheduled by
-      // _markNeedsLayoutDelayed must still be able to get the sliver laid out
-      // in that state: a plain markNeedsLayout() is a no-op there (asserting
-      // in debug mode that the relayout boundary is dirty - which it is not)
-      // and the sliver would silently never lay out again.
-      final controller = ScrollController();
-      addTearDown(controller.dispose);
+    testWidgets(
+      "delayed layout pass recovers sliver invalidated during layout",
+      // The frame that leaves the sliver dirty would trip an unrelated
+      // assert in the semantics flush ('!childSemantics.renderObject
+      // ._needsLayout') before the delayed layout pass gets a chance to run.
+      semanticsEnabled: false,
+      (tester) async {
+        // When a scroll offset correction is requested during layout,
+        // RenderSuperSliverList.layout marks itself dirty through the parent's
+        // invokeLayoutCallback. If the viewport then finishes the frame without
+        // laying the sliver out again (this can happen when dragging the
+        // scrollbar fast), the dirty flag is set but was never propagated to the
+        // pipeline owner. The post-frame callback scheduled by
+        // _markNeedsLayoutDelayed must still be able to get the sliver laid out
+        // in that state: a plain markNeedsLayout() is a no-op there (asserting
+        // in debug mode that the relayout boundary is dirty - which it is not)
+        // and the sliver would silently never lay out again.
+        final controller = ScrollController();
+        addTearDown(controller.dispose);
 
-      const itemCount = 200;
-      const itemHeight = 100.0;
-      const viewportHeight = 500.0;
+        const itemCount = 200;
+        const itemHeight = 100.0;
+        const viewportHeight = 500.0;
 
-      await tester.pumpWidget(
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: Center(
-            child: SizedBox(
-              height: viewportHeight,
-              child: CustomScrollView(
-                physics: const ClampingScrollPhysics(),
-                controller: controller,
-                slivers: [
-                  _InvalidateChildDuringLayout(
-                    sliver: SuperSliverList(
-                      extentPrecalculationPolicy:
-                          _SimpleExtentPrecalculatePolicy(precalculate: true),
-                      // Intentionally wrong estimate so that settling the
-                      // precalculated extents visibly changes the scroll
-                      // extent.
-                      extentEstimation: (_, __) => 10,
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) => SizedBox(
-                          height: itemHeight,
-                          child: Text("Tile $index"),
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Center(
+              child: SizedBox(
+                height: viewportHeight,
+                child: CustomScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  controller: controller,
+                  slivers: [
+                    _InvalidateChildDuringLayout(
+                      sliver: SuperSliverList(
+                        extentPrecalculationPolicy:
+                            _SimpleExtentPrecalculatePolicy(precalculate: true),
+                        // Intentionally wrong estimate so that settling the
+                        // precalculated extents visibly changes the scroll
+                        // extent.
+                        extentEstimation: (_, _) => 10,
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) => SizedBox(
+                            height: itemHeight,
+                            child: Text("Tile $index"),
+                          ),
+                          childCount: itemCount,
                         ),
-                        childCount: itemCount,
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      // Extent precalculation is limited by _TestLayoutBudget, so after the
-      // first frame there are still dirty extents and the sliver has scheduled
-      // a delayed layout pass for the next frame.
-      expect(
-        controller.position.maxScrollExtent,
-        lessThan(itemCount * itemHeight - viewportHeight),
-      );
+        // Extent precalculation is limited by _TestLayoutBudget, so after the
+        // first frame there are still dirty extents and the sliver has scheduled
+        // a delayed layout pass for the next frame.
+        expect(
+          controller.position.maxScrollExtent,
+          lessThan(itemCount * itemHeight - viewportHeight),
+        );
 
-      final proxy = tester.renderObject<_RenderInvalidateChildDuringLayout>(
-        find.byType(_InvalidateChildDuringLayout),
-      );
-      proxy.invalidateChildDuringNextLayout = true;
-      await tester.pump();
-      // Without proper handling the post-frame callback scheduled during this
-      // frame throws "_debugRelayoutBoundaryAlreadyMarkedNeedsLayout" failed
-      // assertion (and in release mode the sliver would stay dirty forever,
-      // freezing the list).
-      expect(tester.takeException(), isNull);
-
-      // The delayed layout passes must be able to finish precalculating the
-      // remaining extents.
-      var frames = 0;
-      while (tester.binding.hasScheduledFrame && frames++ < 100) {
+        final proxy = tester.renderObject<_RenderInvalidateChildDuringLayout>(
+          find.byType(_InvalidateChildDuringLayout),
+        );
+        proxy.invalidateChildDuringNextLayout = true;
         await tester.pump();
-      }
-      expect(
-        controller.position.maxScrollExtent,
-        roughlyEquals(itemCount * itemHeight - viewportHeight),
-      );
-    });
+        // Without proper handling the post-frame callback scheduled during this
+        // frame throws "_debugRelayoutBoundaryAlreadyMarkedNeedsLayout" failed
+        // assertion (and in release mode the sliver would stay dirty forever,
+        // freezing the list).
+        expect(tester.takeException(), isNull);
+
+        // The delayed layout passes must be able to finish precalculating the
+        // remaining extents.
+        var frames = 0;
+        while (tester.binding.hasScheduledFrame && frames++ < 100) {
+          await tester.pump();
+        }
+        expect(
+          controller.position.maxScrollExtent,
+          roughlyEquals(itemCount * itemHeight - viewportHeight),
+        );
+      },
+    );
   });
   group("Fuzzer", () {
     testWidgets("layout multiple slivers scrolling down", (tester) async {
@@ -988,14 +1044,17 @@ void main() {
         SliverListConfiguration configuration, {
         required LayoutMode layoutMode,
       }) async {
-        final ScrollController controller =
-            ScrollController(initialScrollOffset: 0);
+        final ScrollController controller = ScrollController(
+          initialScrollOffset: 0,
+        );
 
-        await tester.pumpWidget(_buildSliverList(
-          configuration,
-          controller: controller,
-          preciseLayout: layoutMode != LayoutMode.estimated,
-        ));
+        await tester.pumpWidget(
+          _buildSliverList(
+            configuration,
+            controller: controller,
+            preciseLayout: layoutMode != LayoutMode.estimated,
+          ),
+        );
 
         if (layoutMode == LayoutMode.preciseWaitUntilComplete) {
           await tester.pumpAndSettle();
@@ -1037,13 +1096,16 @@ void main() {
         required LayoutMode layoutMode,
       }) async {
         final ScrollController controller = ScrollController(
-            initialScrollOffset: configuration.bottomScrollOffsetInitial);
+          initialScrollOffset: configuration.bottomScrollOffsetInitial,
+        );
 
-        await tester.pumpWidget(_buildSliverList(
-          configuration,
-          controller: controller,
-          preciseLayout: layoutMode != LayoutMode.estimated,
-        ));
+        await tester.pumpWidget(
+          _buildSliverList(
+            configuration,
+            controller: controller,
+            preciseLayout: layoutMode != LayoutMode.estimated,
+          ),
+        );
         if (layoutMode == LayoutMode.preciseNoWait) {
           await tester.pump();
         } else {
@@ -1052,17 +1114,24 @@ void main() {
             expect(frameCount, 1); // No async layout
           } else {
             expect(
-                controller.position.extentTotal,
-                roughlyEquals(math.max(
-                    configuration.totalExtent, configuration.viewportHeight)));
+              controller.position.extentTotal,
+              roughlyEquals(
+                math.max(
+                  configuration.totalExtent,
+                  configuration.viewportHeight,
+                ),
+              ),
+            );
           }
 
           if (controller.initialScrollOffset > 0) {
             // Ensure it's scrolled to the end. Note that this depends on an behavior
             // in SuperSliverList where it keeps the sliver aligned to the end
             // through scroll correction when anchoredAtEnd && didAddInitialChild.
-            expect(controller.position.pixels,
-                roughlyEquals(controller.position.maxScrollExtent));
+            expect(
+              controller.position.pixels,
+              roughlyEquals(controller.position.maxScrollExtent),
+            );
           } else {
             expect(controller.position.pixels, isZero);
 
@@ -1109,14 +1178,18 @@ void main() {
       }
     });
     testWidgets("jump to bottom", (tester) async {
-      Future<void> testConfiguration(SliverListConfiguration configuration,
-          {required LayoutMode layoutMode}) async {
+      Future<void> testConfiguration(
+        SliverListConfiguration configuration, {
+        required LayoutMode layoutMode,
+      }) async {
         final ScrollController controller = ScrollController();
-        await tester.pumpWidget(_buildSliverList(
-          configuration,
-          controller: controller,
-          preciseLayout: layoutMode != LayoutMode.estimated,
-        ));
+        await tester.pumpWidget(
+          _buildSliverList(
+            configuration,
+            controller: controller,
+            preciseLayout: layoutMode != LayoutMode.estimated,
+          ),
+        );
         if (layoutMode == LayoutMode.preciseWaitUntilComplete) {
           await tester.pumpAndSettle();
         }
@@ -1130,8 +1203,10 @@ void main() {
         }
         controller.jumpTo(offset);
         await tester.pump();
-        expect(controller.offset,
-            roughlyEquals(controller.position.maxScrollExtent));
+        expect(
+          controller.offset,
+          roughlyEquals(controller.position.maxScrollExtent),
+        );
 
         controller.dispose();
         await tester.pumpWidget(const SizedBox.shrink());
@@ -1159,11 +1234,13 @@ void main() {
         required double alignment,
       }) async {
         final ScrollController controller = ScrollController();
-        await tester.pumpWidget(_buildSliverList(
-          configuration,
-          controller: controller,
-          preciseLayout: layoutMode != LayoutMode.estimated,
-        ));
+        await tester.pumpWidget(
+          _buildSliverList(
+            configuration,
+            controller: controller,
+            preciseLayout: layoutMode != LayoutMode.estimated,
+          ),
+        );
         expect(controller.position.pixels, 0);
         if (layoutMode == LayoutMode.preciseWaitUntilComplete) {
           await tester.pumpAndSettle();
@@ -1189,14 +1266,16 @@ void main() {
             for (int i = 0; i <= sliverIndex; ++i) {
               final pinnedHeader = find.text("PinnedHeader $i");
               if (pinnedHeader.evaluate().isNotEmpty) {
-                final height = tester.getBottomLeft(pinnedHeader).dy -
+                final height =
+                    tester.getBottomLeft(pinnedHeader).dy -
                     tester.getTopLeft(pinnedHeader).dy;
                 viewportTop += height;
                 viewportHeight -= height;
               }
             }
 
-            final positionWithinViewport = tester
+            final positionWithinViewport =
+                tester
                     .getTopLeft(find.text("Tile $sliverIndex:${item.value}"))
                     .dy -
                 viewportTop;
@@ -1231,22 +1310,21 @@ void main() {
         }
         final alignment = configuration.nextDouble();
         const int maxOffsetsToJump = 5;
-        final offsets = List.generate(
-          maxOffsetsToJump,
-          (_) {
-            while (true) {
-              final sliver = configuration
-                  .nextInt(configuration.configuration.slivers.length);
-              if (configuration.configuration.slivers[sliver].items.isEmpty) {
-                continue;
+        final offsets =
+            List.generate(maxOffsetsToJump, (_) {
+              while (true) {
+                final sliver = configuration.nextInt(
+                  configuration.configuration.slivers.length,
+                );
+                if (configuration.configuration.slivers[sliver].items.isEmpty) {
+                  continue;
+                }
+                return sliver;
               }
-              return sliver;
-            }
-          },
-        ).map((sliverIndex) {
-          final sliver = configuration.configuration.slivers[sliverIndex];
-          return (sliverIndex, configuration.nextInt(sliver.items.length));
-        }).toList();
+            }).map((sliverIndex) {
+              final sliver = configuration.configuration.slivers[sliverIndex];
+              return (sliverIndex, configuration.nextInt(sliver.items.length));
+            }).toList();
         await testConfiguration(
           configuration.configuration,
           layoutMode: configuration.layoutMode,
@@ -1273,14 +1351,16 @@ void main() {
       final configuration = SliverListConfiguration.generate(
         slivers: 1,
         itemsPerSliver: (_) => 20,
-        itemHeight: (_, __) => 300,
+        itemHeight: (_, _) => 300,
         viewportHeight: 500,
       );
-      await tester.pumpWidget(_buildSliverList(
-        configuration,
-        listController: controller,
-        preciseLayout: false,
-      ));
+      await tester.pumpWidget(
+        _buildSliverList(
+          configuration,
+          listController: controller,
+          preciseLayout: false,
+        ),
+      );
       await tester.pumpAndSettle();
       expect(attached, 1);
       expect(detached, 0);
@@ -1305,15 +1385,17 @@ void main() {
       final configuration1 = SliverListConfiguration.generate(
         slivers: 1,
         itemsPerSliver: (_) => 20,
-        itemHeight: (_, __) => 300,
+        itemHeight: (_, _) => 300,
         viewportHeight: 500,
         addGlobalKey: true,
       );
-      await tester.pumpWidget(_buildSliverList(
-        configuration1,
-        listController: controller,
-        preciseLayout: false,
-      ));
+      await tester.pumpWidget(
+        _buildSliverList(
+          configuration1,
+          listController: controller,
+          preciseLayout: false,
+        ),
+      );
       await tester.pumpAndSettle();
       expect(attached, 1);
       expect(detached, 0);
@@ -1322,16 +1404,18 @@ void main() {
       final configuration2 = SliverListConfiguration.generate(
         slivers: 1,
         itemsPerSliver: (_) => 20,
-        itemHeight: (_, __) => 300,
+        itemHeight: (_, _) => 300,
         viewportHeight: 500,
         addGlobalKey: true, // different global key
       );
 
-      await tester.pumpWidget(_buildSliverList(
-        configuration2,
-        listController: controller,
-        preciseLayout: false,
-      ));
+      await tester.pumpWidget(
+        _buildSliverList(
+          configuration2,
+          listController: controller,
+          preciseLayout: false,
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(attached, 2);
@@ -1357,15 +1441,17 @@ void main() {
       final configuration = SliverListConfiguration.generate(
         slivers: 1,
         itemsPerSliver: (_) => 20,
-        itemHeight: (_, __) => 300,
+        itemHeight: (_, _) => 300,
         viewportHeight: 500,
         addGlobalKey: true,
       );
-      await tester.pumpWidget(_buildSliverList(
-        configuration,
-        listController: controller1,
-        preciseLayout: false,
-      ));
+      await tester.pumpWidget(
+        _buildSliverList(
+          configuration,
+          listController: controller1,
+          preciseLayout: false,
+        ),
+      );
       await tester.pumpAndSettle();
       expect(attached1, 1);
       expect(detached1, 0);
@@ -1382,11 +1468,13 @@ void main() {
         },
       );
 
-      await tester.pumpWidget(_buildSliverList(
-        configuration,
-        listController: controller2,
-        preciseLayout: false,
-      ));
+      await tester.pumpWidget(
+        _buildSliverList(
+          configuration,
+          listController: controller2,
+          preciseLayout: false,
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(attached1, 1);
@@ -1400,7 +1488,9 @@ void main() {
 }
 
 Widget _buildSliverListRenderWidgetChild(
-    List<String> items, ScrollController controller) {
+  List<String> items,
+  ScrollController controller,
+) {
   return MaterialApp(
     home: Directionality(
       textDirection: TextDirection.ltr,
@@ -1413,10 +1503,7 @@ Widget _buildSliverListRenderWidgetChild(
               SuperSliverList(
                 delegate: SliverChildListDelegate(
                   items.map<Widget>((String item) {
-                    return Chip(
-                      key: Key(item),
-                      label: Text("Tile $item"),
-                    );
+                    return Chip(key: Key(item), label: Text("Tile $item"));
                   }).toList(),
                 ),
               ),
@@ -1456,10 +1543,7 @@ Widget _buildSliverList(
                     height: sliver.pinnedHeaderHeight,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        border: Border.all(
-                          color: Colors.red,
-                          width: 1,
-                        ),
+                        border: Border.all(color: Colors.red, width: 1),
                       ),
                       child: Text("PinnedHeader $sliverIndex"),
                     ),
@@ -1484,20 +1568,22 @@ Widget _buildSliverList(
                             color: [
                               Colors.green,
                               Colors.yellow,
-                              Colors.white
+                              Colors.white,
                             ][sliverIndex % 3],
                             width: 2,
                           ),
                         ),
-                        child:
-                            Text("Tile $sliverIndex:${sliver.items[i].value}"),
+                        child: Text(
+                          "Tile $sliverIndex:${sliver.items[i].value}",
+                        ),
                       ),
                     );
                   },
                   findChildIndexCallback: (Key key) {
                     final ValueKey<int> valueKey = key as ValueKey<int>;
-                    final int index = sliver.items
-                        .indexWhere((v) => v.value == valueKey.value);
+                    final int index = sliver.items.indexWhere(
+                      (v) => v.value == valueKey.value,
+                    );
                     return index == -1 ? null : index;
                   },
                   childCount: sliver.items.length,
@@ -1541,8 +1627,9 @@ Future<void> _checkSmoothScrolling({
     final double scrollDelta;
     {
       final offset = (controller.offset + step).clamp(
-          controller.position.minScrollExtent,
-          controller.position.maxScrollExtent);
+        controller.position.minScrollExtent,
+        controller.position.maxScrollExtent,
+      );
       if (offset == controller.offset) {
         break;
       }

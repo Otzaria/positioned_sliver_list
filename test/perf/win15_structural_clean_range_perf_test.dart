@@ -13,8 +13,8 @@
 // Run with:
 //   flutter test test/perf/win15_structural_clean_range_perf_test.dart
 import "package:flutter_test/flutter_test.dart";
-import "package:positioned_sliver_list/src/extent_list.dart";
 import "package:positioned_sliver_list/positioned_sliver_list.dart";
+import "package:positioned_sliver_list/src/extent_list.dart";
 
 import "perf_tester.dart";
 
@@ -69,10 +69,7 @@ void main() {
   test("Win 15: clean range across appends", () async {
     final perf = PerfTester<_Scenario, double>(
       testName: "Win 15: structural clean-range preservation",
-      testCases: const [
-        _Scenario(20000, 1000),
-        _Scenario(100000, 200),
-      ],
+      testCases: const [_Scenario(20000, 1000), _Scenario(100000, 200)],
       implementation1: (s) => _run(s, preserve: false),
       implementation2: (s) => _run(s, preserve: true),
       impl1Name: "discard-range",

@@ -18,8 +18,9 @@ import "package:positioned_sliver_list/positioned_sliver_list.dart";
 import "perf_tester.dart";
 
 void main() {
-  testWidgets("Win 9: per-child ancestor walk vs single upward walk",
-      (tester) async {
+  testWidgets("Win 9: per-child ancestor walk vs single upward walk", (
+    tester,
+  ) async {
     const sliverCount = 50;
     const itemsPerSliver = 30;
     const reveals = 400;
@@ -33,10 +34,7 @@ void main() {
         Widget nest(Widget sliver, int levels) {
           var result = sliver;
           for (var i = 0; i < levels; i++) {
-            result = SliverPadding(
-              padding: EdgeInsets.zero,
-              sliver: result,
-            );
+            result = SliverPadding(padding: EdgeInsets.zero, sliver: result);
           }
           return result;
         }
@@ -51,8 +49,9 @@ void main() {
                   nest(
                     SuperSliverList.builder(
                       itemCount: itemsPerSliver,
-                      listController:
-                          s == sliverCount - 1 ? listController : null,
+                      listController: s == sliverCount - 1
+                          ? listController
+                          : null,
                       itemBuilder: (context, index) =>
                           SizedBox(height: 20.0 + (index % 3) * 10),
                     ),

@@ -35,8 +35,10 @@ void main() {
       SuperSliverListPerfFlags.cachedShouldPrecalculateExtents = cached;
       final scrollController = ScrollController();
       final policy = _AlwaysPrecalculatePolicy();
-      final listControllers =
-          List.generate(sliverCount, (_) => ListController());
+      final listControllers = List.generate(
+        sliverCount,
+        (_) => ListController(),
+      );
       try {
         await tester.pumpWidget(
           Directionality(
@@ -57,14 +59,17 @@ void main() {
           ),
         );
         var frames = 0;
-        bool anyEstimated() => listControllers
-            .any((c) => c.numberOfItemsWithEstimatedExtent > 0);
+        bool anyEstimated() =>
+            listControllers.any((c) => c.numberOfItemsWithEstimatedExtent > 0);
         while (anyEstimated() && frames < 3000) {
           await tester.pump(const Duration(milliseconds: 16));
           frames++;
         }
-        expect(anyEstimated(), isFalse,
-            reason: "precalculation did not finish within 3000 frames");
+        expect(
+          anyEstimated(),
+          isFalse,
+          reason: "precalculation did not finish within 3000 frames",
+        );
         var checksum = 0.0;
         for (final c in listControllers) {
           checksum += c.totalExtent;

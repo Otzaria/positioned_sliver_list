@@ -256,9 +256,9 @@ class _ScrollBehavior extends ScrollBehavior {
         thumbColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.hovered) ||
               states.contains(WidgetState.dragged)) {
-            return Colors.black.withOpacity(0.4);
+            return Colors.black.withValues(alpha: 0.4);
           }
-          return Colors.black.withOpacity(0.1);
+          return Colors.black.withValues(alpha: 0.1);
         }),
       ),
       child: MediaQuery(

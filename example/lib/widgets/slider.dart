@@ -154,7 +154,7 @@ class Slider extends StatelessWidget {
                   height: 8,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(3),
-                    // color: Colors.blueGrey.shade50.withOpacity(0.5),
+                    // color: Colors.blueGrey.shade50.withValues(alpha: 0.5),
                     border: Border.all(
                       color: Colors.blueGrey.shade300,
                       width: 1,

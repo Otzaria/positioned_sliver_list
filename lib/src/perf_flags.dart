@@ -7,6 +7,7 @@
 ///
 /// These flags are global and not thread-safe; they are intended for
 /// benchmarking and as an escape hatch, not for per-list configuration.
+// ignore: avoid_classes_with_only_static_members
 abstract final class SuperSliverListPerfFlags {
   /// Win 1: `RenderSuperSliverList.childScrollOffset` used an O(n) linear
   /// scan over live children (called from O(n) loops during layout, giving

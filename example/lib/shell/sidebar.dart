@@ -104,8 +104,8 @@ class _NavigationButton extends StatelessWidget {
         final background =
             switch ((selected, state.focused, state.hovered, state.pressed)) {
           (true, _, _, _) => Colors.blue.shade400,
-          (_, _, _, true) => Colors.blue.shade400.withOpacity(0.3),
-          (_, _, true, _) => Colors.blue.shade400.withOpacity(0.2),
+          (_, _, _, true) => Colors.blue.shade400.withValues(alpha: 0.3),
+          (_, _, true, _) => Colors.blue.shade400.withValues(alpha: 0.2),
           (_, _, _, _) => Colors.transparent,
         };
         final textColor = switch ((selected, state.hovered)) {

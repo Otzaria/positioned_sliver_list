@@ -38,7 +38,7 @@ class SliverDecoration extends StatelessWidget {
     return SliverStickyHeader(
       header: stickyHeader
           ? Container(
-              color: _color.withOpacity(0.9),
+              color: _color.withValues(alpha: 0.9),
               padding:
                   const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
               alignment: Alignment.centerLeft,
@@ -52,7 +52,7 @@ class SliverDecoration extends StatelessWidget {
         decoration: BoxDecoration(
           border: Border(
             left: BorderSide(
-              color: _color.withOpacity(0.1),
+              color: _color.withValues(alpha: 0.1),
               width: 8,
             ),
           ),

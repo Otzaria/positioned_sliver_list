@@ -65,7 +65,7 @@ class Button extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               blurStyle: BlurStyle.outer,
-              color: Colors.black.withOpacity(shadowOpacity),
+              color: Colors.black.withValues(alpha: shadowOpacity),
               blurRadius: 3,
             ),
           ],
@@ -193,7 +193,7 @@ class SegmentedButton extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             blurStyle: BlurStyle.outer,
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 3,
           ),
         ],
@@ -248,9 +248,9 @@ Widget buildFlatButton(
   const tint = Colors.black;
   final background =
       switch ((state.selected, state.focused, state.hovered, state.pressed)) {
-    (w.SelectionState.on, _, _, _) => tint.withOpacity(0.4),
-    (_, _, _, true) => tint.withOpacity(0.3),
-    (_, _, true, _) => tint.withOpacity(0.15),
+    (w.SelectionState.on, _, _, _) => tint.withValues(alpha: 0.4),
+    (_, _, _, true) => tint.withValues(alpha: 0.3),
+    (_, _, true, _) => tint.withValues(alpha: 0.15),
     (_, _, _, _) => Colors.transparent,
   };
   return Container(

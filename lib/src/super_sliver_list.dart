@@ -95,10 +95,7 @@ class _ProxyNotifier extends ChangeNotifier {
 }
 
 class ListController extends ChangeNotifier {
-  ListController({
-    this.onAttached,
-    this.onDetached,
-  });
+  ListController({this.onAttached, this.onDetached});
 
   final _extentsChangedNotifier = _ProxyNotifier();
 
@@ -436,10 +433,8 @@ class ListController extends ChangeNotifier {
   }
 }
 
-typedef ExtentEstimationProvider = double Function(
-  int? index,
-  double crossAxisExtent,
-);
+typedef ExtentEstimationProvider =
+    double Function(int? index, double crossAxisExtent);
 
 abstract class ExtentPrecalculationPolicyDelegate {
   void valueDidChange();
@@ -563,15 +558,15 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     bool addRepaintBoundaries = true,
     bool addSemanticIndexes = true,
   }) : super(
-          delegate: SliverChildBuilderDelegate(
-            itemBuilder,
-            findChildIndexCallback: findChildIndexCallback,
-            childCount: itemCount,
-            addAutomaticKeepAlives: addAutomaticKeepAlives,
-            addRepaintBoundaries: addRepaintBoundaries,
-            addSemanticIndexes: addSemanticIndexes,
-          ),
-        );
+         delegate: SliverChildBuilderDelegate(
+           itemBuilder,
+           findChildIndexCallback: findChildIndexCallback,
+           childCount: itemCount,
+           addAutomaticKeepAlives: addAutomaticKeepAlives,
+           addRepaintBoundaries: addRepaintBoundaries,
+           addSemanticIndexes: addSemanticIndexes,
+         ),
+       );
 
   /// Creates a SuperSliverList from widget builder separated by separator
   /// widgets.
@@ -593,34 +588,35 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     bool addRepaintBoundaries = true,
     bool addSemanticIndexes = true,
   }) : super(
-          delegate: SliverChildBuilderDelegate(
-            (BuildContext context, int index) {
-              final int itemIndex = index ~/ 2;
-              final Widget? widget;
-              if (index.isEven) {
-                widget = itemBuilder(context, itemIndex);
-              } else {
-                widget = separatorBuilder(context, itemIndex);
-                assert(() {
-                  if (widget == null) {
-                    throw FlutterError("separatorBuilder cannot return null.");
-                  }
-                  return true;
-                }());
-              }
-              return widget;
-            },
-            findChildIndexCallback: findChildIndexCallback,
-            childCount:
-                itemCount == null ? null : math.max(0, itemCount * 2 - 1),
-            addAutomaticKeepAlives: addAutomaticKeepAlives,
-            addRepaintBoundaries: addRepaintBoundaries,
-            addSemanticIndexes: addSemanticIndexes,
-            semanticIndexCallback: (Widget _, int index) {
-              return index.isEven ? index ~/ 2 : null;
-            },
-          ),
-        );
+         delegate: SliverChildBuilderDelegate(
+           (BuildContext context, int index) {
+             final int itemIndex = index ~/ 2;
+             final Widget? widget;
+             if (index.isEven) {
+               widget = itemBuilder(context, itemIndex);
+             } else {
+               widget = separatorBuilder(context, itemIndex);
+               assert(() {
+                 if (widget == null) {
+                   throw FlutterError("separatorBuilder cannot return null.");
+                 }
+                 return true;
+               }());
+             }
+             return widget;
+           },
+           findChildIndexCallback: findChildIndexCallback,
+           childCount: itemCount == null
+               ? null
+               : math.max(0, itemCount * 2 - 1),
+           addAutomaticKeepAlives: addAutomaticKeepAlives,
+           addRepaintBoundaries: addRepaintBoundaries,
+           addSemanticIndexes: addSemanticIndexes,
+           semanticIndexCallback: (Widget _, int index) {
+             return index.isEven ? index ~/ 2 : null;
+           },
+         ),
+       );
 
   /// Creates a SuperSliverList from list of child widgets.
   ///
@@ -638,13 +634,13 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     bool addRepaintBoundaries = true,
     bool addSemanticIndexes = true,
   }) : super(
-          delegate: SliverChildListDelegate(
-            children,
-            addAutomaticKeepAlives: addAutomaticKeepAlives,
-            addRepaintBoundaries: addRepaintBoundaries,
-            addSemanticIndexes: addSemanticIndexes,
-          ),
-        );
+         delegate: SliverChildListDelegate(
+           children,
+           addAutomaticKeepAlives: addAutomaticKeepAlives,
+           addRepaintBoundaries: addRepaintBoundaries,
+           addSemanticIndexes: addSemanticIndexes,
+         ),
+       );
 
   /// When set provides access to extents of individual children.
   /// [ListController] can also be used to jump to a specific item in the list.
@@ -686,9 +682,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
   final InitialScrollPosition initialScrollPosition;
 
   static SuperSliverListLayoutBudget layoutBudget =
-      _TimeSuperSliverListLayoutBudget(
-    budget: const Duration(milliseconds: 3),
-  );
+      _TimeSuperSliverListLayoutBudget(budget: const Duration(milliseconds: 3));
 
   @override
   SliverMultiBoxAdaptorElement createElement() =>
@@ -724,9 +718,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
 }
 
 class _TimeSuperSliverListLayoutBudget extends SuperSliverListLayoutBudget {
-  _TimeSuperSliverListLayoutBudget({
-    required this.budget,
-  });
+  _TimeSuperSliverListLayoutBudget({required this.budget});
 
   @override
   void reset() {

@@ -13,8 +13,8 @@
 // Run with:
 //   flutter test test/perf/win7_mark_dirty_clean_range_perf_test.dart
 import "package:flutter_test/flutter_test.dart";
-import "package:positioned_sliver_list/src/extent_list.dart";
 import "package:positioned_sliver_list/positioned_sliver_list.dart";
+import "package:positioned_sliver_list/src/extent_list.dart";
 
 import "perf_tester.dart";
 
@@ -70,10 +70,7 @@ void main() {
   test("Win 7: markDirty range discard vs preservation", () async {
     final perf = PerfTester<_Scenario, double>(
       testName: "Win 7: clean range across invalidations",
-      testCases: const [
-        _Scenario(20000, 1000),
-        _Scenario(100000, 300),
-      ],
+      testCases: const [_Scenario(20000, 1000), _Scenario(100000, 300)],
       implementation1: (s) => _run(s, preserve: false),
       implementation2: (s) => _run(s, preserve: true),
       impl1Name: "discard-range",

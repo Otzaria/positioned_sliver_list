@@ -36,8 +36,9 @@ class LayoutPass {
       return false;
     }
     final index = sliversDuringLayout.indexOf(sliverWithOffsetEstimation!);
-    return index == -1 // not reached yet
-        ||
+    return index ==
+            -1 // not reached yet
+            ||
         index > sliversDuringLayout.indexOf(s);
   }
 
@@ -97,10 +98,12 @@ extension RenderSliverLayoutPass on RenderSliver {
     if (pass == null) {
       final slivers = getSuperSliverLists();
       var sliverWithOffsetEstimation = slivers.firstWhereOrNull(
-          (element) => element.hasChildScrollOffsetEstimation);
+        (element) => element.hasChildScrollOffsetEstimation,
+      );
       if (sliverWithOffsetEstimation != null) {
-        sliverWithOffsetEstimation
-            .sanitizeChildScrollOffsetEstimation(viewport);
+        sliverWithOffsetEstimation.sanitizeChildScrollOffsetEstimation(
+          viewport,
+        );
         if (!sliverWithOffsetEstimation.hasChildScrollOffsetEstimation) {
           sliverWithOffsetEstimation = null;
         }

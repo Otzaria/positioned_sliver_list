@@ -76,7 +76,7 @@ class CheckBox extends StatelessWidget {
               boxShadow: [
                 BoxShadow(
                   blurStyle: BlurStyle.outer,
-                  color: Colors.black.withOpacity(shadowOpacity),
+                  color: Colors.black.withValues(alpha: shadowOpacity),
                   blurRadius: 3,
                 ),
               ],

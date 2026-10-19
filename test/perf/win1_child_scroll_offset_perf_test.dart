@@ -19,8 +19,9 @@ import "perf_tester.dart";
 import "widget_scenarios.dart";
 
 void main() {
-  testWidgets("Win 1: childScrollOffset linear scan vs O(1) check",
-      (tester) async {
+  testWidgets("Win 1: childScrollOffset linear scan vs O(1) check", (
+    tester,
+  ) async {
     Future<double> scenario(ScrollScenario s, bool fastLookup) async {
       final saved = SuperSliverListPerfFlags.fastChildScrollOffsetLookup;
       SuperSliverListPerfFlags.fastChildScrollOffsetLookup = fastLookup;

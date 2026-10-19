@@ -240,9 +240,11 @@ void main() {
       expect(extentList.cleanRangeEnd, equals(4));
 
       // Invariant: everything within the reported range is clean.
-      for (var i = extentList.cleanRangeStart!;
-          i <= extentList.cleanRangeEnd!;
-          i++) {
+      for (
+        var i = extentList.cleanRangeStart!;
+        i <= extentList.cleanRangeEnd!;
+        i++
+      ) {
         expect(extentList.isDirty(i), isFalse);
       }
     });

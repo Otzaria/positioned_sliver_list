@@ -51,7 +51,7 @@ class _FocusPainter extends CustomPainter {
       final opacity = focus;
 
       final paint = Paint()
-        ..color = Colors.deepOrange.shade200.withOpacity(opacity);
+        ..color = Colors.deepOrange.shade200.withValues(alpha: opacity);
 
       final radius = Radius.circular(this.radius).pixelSnap(pixelSnap);
       var rect = (Offset.zero & size).pixelSnap(pixelSnap).inflate(2);

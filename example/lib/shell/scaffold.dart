@@ -70,8 +70,8 @@ class ScaffoldState extends State<Scaffold>
                       return GestureDetector(
                         onTap: closeDrawer,
                         child: Container(
-                          color:
-                              const Color(0x00000000).withOpacity(0.5 * value),
+                          color: const Color(0x00000000)
+                              .withValues(alpha: 0.5 * value),
                         ),
                       );
                     }

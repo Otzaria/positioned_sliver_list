@@ -1,10 +1,7 @@
 import "package:flutter/rendering.dart";
 
 class ChildObstructionExtent {
-  ChildObstructionExtent({
-    required this.leading,
-    required this.trailing,
-  });
+  ChildObstructionExtent({required this.leading, required this.trailing});
 
   /// Amount of space from the leading edge where this sliver obstructs its child.
   final double leading;
@@ -53,9 +50,7 @@ extension SliverGeometryChildObstruction on SliverGeometry {
   /// its child.
   ///
   /// See [childObstructionExtent].
-  SliverGeometry withChildObstructionExtent(
-    ChildObstructionExtent? value,
-  ) {
+  SliverGeometry withChildObstructionExtent(ChildObstructionExtent? value) {
     return _SliverGeometryWithChildObstructionExtent(
       scrollExtent: scrollExtent,
       paintExtent: paintExtent,
@@ -78,8 +73,10 @@ extension RenderObjectChildObstuctionExtent on RenderObject {
   /// Returns the total child obstruction extent of all slivers
   /// above and this render object.
   ChildObstructionExtent getParentChildObstructionExtent() {
-    var childObstructionExtent =
-        ChildObstructionExtent(leading: 0, trailing: 0);
+    var childObstructionExtent = ChildObstructionExtent(
+      leading: 0,
+      trailing: 0,
+    );
     var parent = this.parent;
     while (parent != null && parent is! RenderViewport) {
       if (parent is RenderSliver) {
@@ -157,8 +154,9 @@ extension RenderViewportExt on RenderAbstractViewport {
     }
     final obstruction = target.getParentChildObstructionExtent();
 
-    final resolvedAxis =
-        (this is RenderViewportBase ? (this as RenderViewportBase).axis : axis);
+    final resolvedAxis = (this is RenderViewportBase
+        ? (this as RenderViewportBase).axis
+        : axis);
 
     Rect shiftRect(Rect rect, double offset) {
       if (resolvedAxis == Axis.vertical) {

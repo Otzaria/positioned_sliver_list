@@ -7,15 +7,9 @@ class SliverItem {
   final int value;
   final double height;
 
-  SliverItem({
-    required this.value,
-    required this.height,
-  });
+  SliverItem({required this.value, required this.height});
 
-  SliverItem copyWith({
-    int? value,
-    double? height,
-  }) {
+  SliverItem copyWith({int? value, double? height}) {
     return SliverItem(
       value: value ?? this.value,
       height: height ?? this.height,
@@ -29,7 +23,6 @@ class Sliver {
   final ListController listController;
   final double pinnedHeaderHeight;
 
-  // ignore: unused_element
   Sliver(
     this.items, {
     this.key,
@@ -91,18 +84,15 @@ class SliverListConfiguration {
       final List<SliverItem> items = [];
       final itemsCount = itemsPerSliver(i);
       for (int j = 0; j < itemsCount; ++j) {
-        items.add(
-          SliverItem(
-            value: itemValue(i, j),
-            height: itemHeight(i, j),
-          ),
-        );
+        items.add(SliverItem(value: itemValue(i, j), height: itemHeight(i, j)));
       }
-      sliverList.add(Sliver(
-        items,
-        key: addGlobalKey ? GlobalKey() : null,
-        pinnedHeaderHeight: pinnedHeaderHeight(i),
-      ));
+      sliverList.add(
+        Sliver(
+          items,
+          key: addGlobalKey ? GlobalKey() : null,
+          pinnedHeaderHeight: pinnedHeaderHeight(i),
+        ),
+      );
     }
     return SliverListConfiguration(
       slivers: sliverList,

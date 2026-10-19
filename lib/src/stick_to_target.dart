@@ -142,21 +142,21 @@ class _StickToTargetState extends State<StickToTarget> {
   void dispose() {
     _interactionTimer?.cancel();
     _cancelScheduledJumps();
-    _contentListenable(
-      widget.listController,
-    ).removeListener(_onContentChanged);
+    _contentListenable(widget.listController).removeListener(_onContentChanged);
     widget.listController.stickTarget = null;
     super.dispose();
   }
 
   Listenable _contentListenable(ListController controller) =>
       SuperSliverListPerfFlags.extentsOnlyStickNotifications
-          ? controller.extentsChangedListenable
-          : controller;
+      ? controller.extentsChangedListenable
+      : controller;
 
   ScrollPosition? _readyPosition(ScrollController controller) {
-    assert(controller.positions.length <= 1,
-        "StickToTarget requires a ScrollController with at most one position.");
+    assert(
+      controller.positions.length <= 1,
+      "StickToTarget requires a ScrollController with at most one position.",
+    );
     if (controller.positions.length != 1) return null;
     final position = controller.position;
     if (!position.hasPixels ||
@@ -221,7 +221,8 @@ class _StickToTargetState extends State<StickToTarget> {
 
   void _syncRenderTarget() {
     final position = _readyPosition(widget.scrollController);
-    final renderTarget = _isSticking &&
+    final renderTarget =
+        _isSticking &&
             !_userIsInteracting &&
             position != null &&
             position.axisDirection != AxisDirection.up

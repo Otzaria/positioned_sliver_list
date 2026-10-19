@@ -1,10 +1,10 @@
 // ignore_for_file: avoid_print
 
-import 'dart:async';
-import 'dart:convert';
-import 'dart:math' as math;
+import "dart:async";
+import "dart:convert";
+import "dart:math" as math;
 
-import 'perf_profiler.dart';
+import "perf_profiler.dart";
 
 /// A named implementation entry for [PerfTester].
 class PerfImpl<Input, Output> {
@@ -128,8 +128,8 @@ class PerfTester<Input, Output> {
     required this.testCases,
     required FutureOr<Output?> Function(Input) implementation1,
     required FutureOr<Output?> Function(Input) implementation2,
-    String impl1Name = 'Original',
-    String impl2Name = 'Optimized',
+    String impl1Name = "Original",
+    String impl2Name = "Optimized",
     this.equalityCheck,
   }) : implementations = [
          PerfImpl(impl1Name, implementation1),
@@ -145,29 +145,29 @@ class PerfTester<Input, Output> {
     this.equalityCheck,
   }) : assert(
          implementations.length >= 2,
-         'Need at least 2 implementations to compare',
+         "Need at least 2 implementations to compare",
        );
 
   // ── Output helpers ──────────────────────────────────────────────────
 
   static const _ruleDouble =
-      '══════════════════════════════════════════════════════';
+      "══════════════════════════════════════════════════════";
   static const _ruleSingle =
-      '──────────────────────────────────────────────────────';
+      "──────────────────────────────────────────────────────";
 
   void _header(String title) {
-    print('');
+    print("");
     print(_ruleDouble);
-    print(' PerfTester: $title');
+    print(" PerfTester: $title");
     print(_ruleDouble);
   }
 
   void _step(int n, int total, String msg) {
-    print('');
-    print('[$n/$total] $msg');
+    print("");
+    print("[$n/$total] $msg");
   }
 
-  void _sub(String msg) => print('      $msg');
+  void _sub(String msg) => print("      $msg");
 
   // ── Public entry point ──────────────────────────────────────────────
 
@@ -237,10 +237,10 @@ class PerfTester<Input, Output> {
 
     _header(testName);
     final steps = [
-      if (!skipEqualityCheck) 'Verify',
-      'Warmup',
-      'Benchmark',
-      if (profile) 'Profile (×${implementations.length})',
+      if (!skipEqualityCheck) "Verify",
+      "Warmup",
+      "Benchmark",
+      if (profile) "Profile (×${implementations.length})",
     ];
     print(' Implementations: ${implementations.map((e) => e.name).join(', ')}');
     print(' Steps: ${steps.join(' → ')}');
@@ -252,7 +252,7 @@ class PerfTester<Input, Output> {
       _step(
         step,
         totalSteps,
-        'Verify: checking all implementations produce identical output...',
+        "Verify: checking all implementations produce identical output...",
       );
       await _verifyImplementations();
     }
@@ -287,7 +287,7 @@ class PerfTester<Input, Output> {
           _step(
             step,
             totalSteps,
-            'Profile: running each implementation separately...',
+            "Profile: running each implementation separately...",
           );
           for (final impl in implementations) {
             await profiler.clearSamples();
@@ -303,7 +303,7 @@ class PerfTester<Input, Output> {
           _step(
             step,
             totalSteps,
-            'Profile: skipped (VM service not available).',
+            "Profile: skipped (VM service not available).",
           );
         }
       }
@@ -339,8 +339,8 @@ class PerfTester<Input, Output> {
             : baseEncoded == encoded;
 
         if (!isEqual) {
-          _sub('❌ Mismatch on test case $i: ${baseline.name} vs ${impl.name}');
-          _sub('Input: $input');
+          _sub("❌ Mismatch on test case $i: ${baseline.name} vs ${impl.name}");
+          _sub("Input: $input");
 
           if (baseEncoded.length > 1000 || encoded.length > 1000) {
             _printStringDiff(
@@ -350,8 +350,8 @@ class PerfTester<Input, Output> {
               labelB: impl.name,
             );
           } else {
-            _sub('${baseline.name}: $baseEncoded');
-            _sub('${impl.name}: $encoded');
+            _sub("${baseline.name}: $baseEncoded");
+            _sub("${impl.name}: $encoded");
           }
           allEqual = false;
         }
@@ -363,7 +363,7 @@ class PerfTester<Input, Output> {
         '✅ All ${testCases.length} test case${testCases.length == 1 ? '' : 's'} match across ${implementations.length} implementations.',
       );
     } else {
-      _sub('❌ Differences found in outputs!');
+      _sub("❌ Differences found in outputs!");
     }
   }
 
@@ -380,7 +380,7 @@ class PerfTester<Input, Output> {
       }
     }
     sw.stop();
-    _sub('Done (${sw.elapsedMilliseconds} ms).');
+    _sub("Done (${sw.elapsedMilliseconds} ms).");
   }
 
   // ── Benchmark ─────────────────────────────────────────────────────────
@@ -402,7 +402,7 @@ class PerfTester<Input, Output> {
 
       for (final idx in order) {
         final sw = stopwatches[idx]..start();
-        for (var input in testCases) {
+        for (final input in testCases) {
           await _invoke(implementations[idx].fn, input);
         }
         sw.stop();
@@ -417,7 +417,7 @@ class PerfTester<Input, Output> {
       final printStep = math.max(1, runs ~/ 10);
       if ((run + 1) % printStep == 0 || run == runs - 1) {
         _sub(
-          'Run ${run + 1}/$runs (${runIterationSw.elapsedMilliseconds} ms).',
+          "Run ${run + 1}/$runs (${runIterationSw.elapsedMilliseconds} ms).",
         );
       }
     }
@@ -458,7 +458,7 @@ class PerfTester<Input, Output> {
         ? list[list.length ~/ 2]
         : (list[list.length ~/ 2 - 1] + list[list.length ~/ 2]) / 2;
     double stdDev(List<double> list, double m) {
-      var squaredDiffs = list.map((x) => math.pow(x - m, 2));
+      final squaredDiffs = list.map((x) => math.pow(x - m, 2));
       return math.sqrt(
         squaredDiffs.reduce((a, b) => a + b) / (list.length - 1),
       );
@@ -486,9 +486,9 @@ class PerfTester<Input, Output> {
     // Helper function to format numbers intelligently
     String formatNumber(double value) {
       if (value >= 1000000) {
-        return '${(value / 1000000).toStringAsFixed(2)}M';
+        return "${(value / 1000000).toStringAsFixed(2)}M";
       } else if (value >= 1000) {
-        return '${(value / 1000).toStringAsFixed(2)}K';
+        return "${(value / 1000).toStringAsFixed(2)}K";
       } else if (value >= 100) {
         return value.toStringAsFixed(1);
       } else if (value >= 10) {
@@ -500,13 +500,13 @@ class PerfTester<Input, Output> {
 
     // Metrics: label → values per implementation
     final metrics = {
-      'Total Time (ms)': totals,
-      'Ops/Second': opsPerSecs,
-      'Min (ms)': [for (var k = 0; k < n; k++) implTimes[k].first],
-      'Max (ms)': [for (var k = 0; k < n; k++) implTimes[k].last],
-      'Median (ms)': medians,
-      'Mean (ms)': means,
-      'Std Dev (ms)': stdDevs,
+      "Total Time (ms)": totals,
+      "Ops/Second": opsPerSecs,
+      "Min (ms)": [for (var k = 0; k < n; k++) implTimes[k].first],
+      "Max (ms)": [for (var k = 0; k < n; k++) implTimes[k].last],
+      "Median (ms)": medians,
+      "Mean (ms)": means,
+      "Std Dev (ms)": stdDevs,
     };
 
     final names = implementations.map((e) => e.name).toList();
@@ -526,15 +526,15 @@ class PerfTester<Input, Output> {
       colWidths.add(maxW + 2);
     }
 
-    print('');
-    _sub('Results:');
+    print("");
+    _sub("Results:");
 
     // Header row.
-    final headerBuf = StringBuffer(''.padRight(maxLabelWidth));
+    final headerBuf = StringBuffer("".padRight(maxLabelWidth));
     for (var k = 0; k < n; k++) {
       headerBuf.write(names[k].padRight(colWidths[k]));
     }
-    if (n > 1) headerBuf.write('vs ${names[0]}');
+    if (n > 1) headerBuf.write("vs ${names[0]}");
     _sub(headerBuf.toString());
 
     // Row printer.
@@ -559,7 +559,7 @@ class PerfTester<Input, Output> {
         final baseVal = vals[0];
         final implVal = vals[k];
 
-        var improvement = ((baseVal - implVal) / baseVal * 100);
+        var improvement = (baseVal - implVal) / baseVal * 100;
         var speedupFactor = baseVal / implVal;
 
         if (higherIsBetter) {
@@ -569,34 +569,34 @@ class PerfTester<Input, Output> {
 
         String comp;
         if (improvement > 0) {
-          String speedupStr = speedupFactor.isInfinite
-              ? 'Infinity'
+          final String speedupStr = speedupFactor.isInfinite
+              ? "Infinity"
               : speedupFactor.toStringAsFixed(1);
-          comp = '↑${improvement.toStringAsFixed(1)}% (${speedupStr}x faster)';
+          comp = "↑${improvement.toStringAsFixed(1)}% (${speedupStr}x faster)";
         } else if (improvement < 0) {
           comp =
-              '↓${(-improvement).toStringAsFixed(1)}% (${(1 / speedupFactor).toStringAsFixed(1)}x slower)';
+              "↓${(-improvement).toStringAsFixed(1)}% (${(1 / speedupFactor).toStringAsFixed(1)}x slower)";
         } else {
-          comp = 'No difference';
+          comp = "No difference";
         }
-        comparisons.add('${names[k]}: $comp');
+        comparisons.add("${names[k]}: $comp");
       }
-      buf.write(comparisons.join('  '));
+      buf.write(comparisons.join("  "));
       _sub(buf.toString());
     }
 
-    printRow('Total Time (ms):', totals);
+    printRow("Total Time (ms):", totals);
     printRow(
-      'Ops/Second:',
+      "Ops/Second:",
       opsPerSecs,
       formatLarge: true,
       higherIsBetter: true,
     );
-    printRow('Min (ms):', metrics['Min (ms)']!);
-    printRow('Max (ms):', metrics['Max (ms)']!);
-    printRow('Median (ms):', medians);
-    printRow('Mean (ms):', means);
-    printRow('Std Dev (ms):', stdDevs);
+    printRow("Min (ms):", metrics["Min (ms)"]!);
+    printRow("Max (ms):", metrics["Max (ms)"]!);
+    printRow("Median (ms):", medians);
+    printRow("Mean (ms):", means);
+    printRow("Std Dev (ms):", stdDevs);
   }
 
   /// Prints histogram-style timing visualizations for all implementations.
@@ -609,14 +609,14 @@ class PerfTester<Input, Output> {
       allSorted.add(List.of(times)..sort());
     }
 
-    var visMin = allSorted.map((s) => s.first).reduce(math.min);
+    final visMin = allSorted.map((s) => s.first).reduce(math.min);
     var visMax =
         allSorted.map((s) => s[(s.length * 0.99).floor()]).reduce(math.max) *
         1.2;
     final absMax = allSorted.map((s) => s.last).reduce(math.max);
     if (visMax > absMax) visMax = absMax;
 
-    final binCount = 30;
+    const binCount = 30;
     final binSize = (visMax - visMin) / binCount;
 
     String formatValue(double val) {
@@ -633,7 +633,7 @@ class PerfTester<Input, Output> {
     for (final times in implTimes) {
       final hist = List.filled(binCount, 0);
       var outliers = 0;
-      for (var value in times) {
+      for (final value in times) {
         if (value > visMax) {
           outliers++;
           continue;
@@ -665,41 +665,41 @@ class PerfTester<Input, Output> {
       double min,
       double max,
     ) {
-      var line = StringBuffer();
-      line.write('${label.padRight(labelWidth)}│');
+      final line = StringBuffer();
+      line.write("${label.padRight(labelWidth)}│");
 
       // Use square root scaling for better visibility
-      for (var count in hist) {
-        var heightRatio = count == 0
+      for (final count in hist) {
+        final heightRatio = count == 0
             ? 0
             : math.sqrt(count) / math.sqrt(maxCount);
-        var height = (heightRatio * 8).round();
-        var char = switch (height) {
-          0 => ' ',
-          1 => '▁',
-          2 => '▂',
-          3 => '▃',
-          4 => '▄',
-          5 => '▅',
-          6 => '▆',
-          7 => '▇',
-          _ => '█',
+        final height = (heightRatio * 8).round();
+        final char = switch (height) {
+          0 => " ",
+          1 => "▁",
+          2 => "▂",
+          3 => "▃",
+          4 => "▄",
+          5 => "▅",
+          6 => "▆",
+          7 => "▇",
+          _ => "█",
         };
         line.write(char);
       }
-      line.write('│');
+      line.write("│");
 
       // Add statistics
-      line.write(' n=${hist.reduce((a, b) => a + b)}');
-      if (outlierCount > 0) line.write(' (+$outlierCount)');
-      line.write(' [${formatValue(min)}-${formatValue(max)}ms]');
+      line.write(" n=${hist.reduce((a, b) => a + b)}");
+      if (outlierCount > 0) line.write(" (+$outlierCount)");
+      line.write(" [${formatValue(min)}-${formatValue(max)}ms]");
 
       return line.toString();
     }
 
-    print('');
+    print("");
     _sub(
-      'Distribution (showing ${formatValue(visMin)}-${formatValue(visMax)}ms):',
+      "Distribution (showing ${formatValue(visMin)}-${formatValue(visMax)}ms):",
     );
     for (var k = 0; k < implementations.length; k++) {
       final sorted = allSorted[k];
@@ -722,7 +722,7 @@ String _safeEncode(Object? value) {
   try {
     return jsonEncode(value);
   } catch (_) {
-    return value?.toString() ?? 'null';
+    return value?.toString() ?? "null";
   }
 }
 
@@ -731,8 +731,8 @@ String _safeEncode(Object? value) {
 void _printStringDiff(
   String a,
   String b, {
-  String labelA = 'A',
-  String labelB = 'B',
+  String labelA = "A",
+  String labelB = "B",
   // rationale: clarity for callers
   // ignore: avoid-never-passed-parameters
   int context = 200,
@@ -779,9 +779,9 @@ void _printStringDiff(
   );
 
   // Metadata
-  print('--- Diff summary ---');
-  print('Lengths: $labelA=${a.length}, $labelB=${b.length}');
-  print('Common prefix: $prefix chars, Common suffix: $suffix chars');
+  print("--- Diff summary ---");
+  print("Lengths: $labelA=${a.length}, $labelB=${b.length}");
+  print("Common prefix: $prefix chars, Common suffix: $suffix chars");
 
   // Show diff with context
   if (prefix > 0) {
@@ -793,10 +793,10 @@ void _printStringDiff(
 
     print('...${prefixSnippet.replaceAll('\n', '\\n')}');
   }
-  print('<<< $labelA differs >>>');
-  print(aMid.replaceAll('\n', '\\n'));
-  print('>>> $labelB differs <<<');
-  print(bMid.replaceAll('\n', '\\n'));
+  print("<<< $labelA differs >>>");
+  print(aMid.replaceAll("\n", "\\n"));
+  print(">>> $labelB differs <<<");
+  print(bMid.replaceAll("\n", "\\n"));
   if (suffix > 0) {
     final hasSuffixEllipsis = suffix > context;
 
@@ -809,5 +809,5 @@ void _printStringDiff(
       '${suffixSnippet.replaceAll('\n', '\\n')}${hasSuffixEllipsis ? '...' : ''}',
     );
   }
-  print('--- End diff ---');
+  print("--- End diff ---");
 }

@@ -18,8 +18,9 @@ import "package:positioned_sliver_list/positioned_sliver_list.dart";
 import "perf_tester.dart";
 
 void main() {
-  testWidgets("Win 11: unconditional vs guarded logging stopwatch",
-      (tester) async {
+  testWidgets("Win 11: unconditional vs guarded logging stopwatch", (
+    tester,
+  ) async {
     const sliverCount = 60;
     const itemsPerSliver = 10;
 
@@ -47,8 +48,10 @@ void main() {
         var checksum = 0.0;
         final max = scrollController.position.maxScrollExtent;
         for (var i = 0; i < 40; i++) {
-          final target =
-              (i.isEven ? (i + 1) * 400.0 : (i - 1) * 250.0).clamp(0.0, max);
+          final target = (i.isEven ? (i + 1) * 400.0 : (i - 1) * 250.0).clamp(
+            0.0,
+            max,
+          );
           scrollController.jumpTo(target);
           await tester.pump();
           checksum += scrollController.position.pixels;

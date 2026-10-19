@@ -6,20 +6,13 @@ import "dart:ui";
 /// [ListController.stickTarget] for zero-lag corrections during layout.
 class StickTarget {
   /// Pin a specific item at a specific viewport position.
-  const StickTarget({
-    required this.index,
-    required this.alignment,
-    this.rect,
-  });
+  const StickTarget({required this.index, required this.alignment, this.rect});
 
   /// Stick to the trailing edge of the list.
   ///
   /// The render object applies scroll offset corrections during layout
   /// to keep the bottom pinned — zero lag, no post-frame callback needed.
-  const StickTarget.bottom()
-      : index = -1,
-        alignment = 1.0,
-        rect = null;
+  const StickTarget.bottom() : index = -1, alignment = 1.0, rect = null;
 
   /// Whether this target represents simple stick-to-bottom behavior.
   bool get isBottom => index == -1;

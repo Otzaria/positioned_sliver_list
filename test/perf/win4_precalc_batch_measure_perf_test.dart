@@ -24,8 +24,9 @@ class _AlwaysPrecalculatePolicy extends ExtentPrecalculationPolicy {
 }
 
 void main() {
-  testWidgets("Win 4: per-item vs batched extent precalculation",
-      (tester) async {
+  testWidgets("Win 4: per-item vs batched extent precalculation", (
+    tester,
+  ) async {
     const itemCount = 6000;
 
     Future<double> scenario(bool batched) async {
@@ -45,9 +46,8 @@ void main() {
               itemCount: itemCount,
               // Cheapest possible item: measures per-item *overhead*
               // (buildScope + invokeLayoutCallback) rather than item cost.
-              itemBuilder: (context, index) => SizedBox(
-                height: 20.0 + (index * 7) % 40,
-              ),
+              itemBuilder: (context, index) =>
+                  SizedBox(height: 20.0 + (index * 7) % 40),
             ),
           ),
         );
@@ -57,12 +57,17 @@ void main() {
           await tester.pump(const Duration(milliseconds: 16));
           frames++;
         }
-        expect(listController.numberOfItemsWithEstimatedExtent, 0,
-            reason: "extent precalculation did not finish within 2000 frames");
+        expect(
+          listController.numberOfItemsWithEstimatedExtent,
+          0,
+          reason: "extent precalculation did not finish within 2000 frames",
+        );
         final totalExtent = listController.totalExtent;
         // ignore: avoid_print
-        print("      [${batched ? "batched" : "per-item"}] "
-            "precalculated $itemCount items in $frames frames");
+        print(
+          "      [${batched ? "batched" : "per-item"}] "
+          "precalculated $itemCount items in $frames frames",
+        );
         await tester.pumpWidget(const SizedBox());
         return totalExtent;
       } finally {

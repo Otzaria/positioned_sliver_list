@@ -3,15 +3,13 @@ import "dart:typed_data";
 
 /// Zero indexed Fenwick Tree
 class FenwickTree {
-  FenwickTree({
-    required int size,
-  })  : _size = size,
-        _tree = Float64List(size + 1);
+  FenwickTree({required int size})
+    : _size = size,
+      _tree = Float64List(size + 1);
 
-  FenwickTree.fromList({
-    required Float64List list,
-  })  : _size = list.length,
-        _tree = Float64List(list.length + 1) {
+  FenwickTree.fromList({required Float64List list})
+    : _size = list.length,
+      _tree = Float64List(list.length + 1) {
     final size = _size;
     for (int i = 1; i <= size; ++i) {
       _tree[i] += list[i - 1];

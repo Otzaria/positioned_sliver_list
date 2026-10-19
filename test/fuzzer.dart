@@ -99,8 +99,9 @@ class FuzzConfigurationProvider extends TestConfigurationProvider {
   @override
   Iterable<TestConfiguration> nextConfiguration() sync* {
     const isCustomerTest = bool.fromEnvironment("flutter_customer_test");
-    const iterations =
-        isCustomerTest ? _customerTestMaxIterations : _maxIterations;
+    const iterations = isCustomerTest
+        ? _customerTestMaxIterations
+        : _maxIterations;
     for (final (fcIndex, fc) in _testConfigurations.indexed) {
       final seedRandom = math.Random(fc.seed);
       for (int i = 0; i < iterations; ++i) {
@@ -177,5 +178,5 @@ final List<_FuzzerConfiguration> _testConfigurations = [
     minItemHeight: 50,
     viewportHeight: 500,
     maxPinnedHeaderHeight: 20,
-  )
+  ),
 ];

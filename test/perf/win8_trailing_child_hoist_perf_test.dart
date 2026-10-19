@@ -14,8 +14,9 @@ import "perf_tester.dart";
 import "widget_scenarios.dart";
 
 void main() {
-  testWidgets("Win 8: duplicated vs hoisted trailing-edge computation",
-      (tester) async {
+  testWidgets("Win 8: duplicated vs hoisted trailing-edge computation", (
+    tester,
+  ) async {
     Future<double> scenario(ScrollScenario s, bool hoisted) async {
       final saved = SuperSliverListPerfFlags.hoistTrailingChildValues;
       SuperSliverListPerfFlags.hoistTrailingChildValues = hoisted;
