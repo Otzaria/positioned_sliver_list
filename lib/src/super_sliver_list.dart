@@ -315,10 +315,14 @@ class ListController extends ChangeNotifier {
     }
     _headerAnchor?.cancel();
     cancelPositioning();
+    // Stops a fling or animation in progress without sending scroll
+    // notifications when nothing scrolls.
     final position = scrollPosition;
-    if (position != null && position.hasPixels) {
-      // Stops a fling or drag in progress.
-      position.jumpTo(position.pixels);
+    if (position != null && position.isScrollingNotifier.value) {
+      final delegate = position;
+      if (delegate is ScrollActivityDelegate) {
+        (delegate as ScrollActivityDelegate).goIdle();
+      }
     }
     return _delegate!.delegate.jumpToIndex(index, alignment, offset);
   }
@@ -342,9 +346,11 @@ class ListController extends ChangeNotifier {
   }) {
     assert(_delegate != null, "ListController is not attached.");
     final position = scrollPosition;
+    // Before the first layout there is nothing to animate from.
     if (_delegate == null ||
         position == null ||
         !position.hasPixels ||
+        !position.hasContentDimensions ||
         duration <= Duration.zero) {
       return AnimationHandle._([
         _CompletedOperation(

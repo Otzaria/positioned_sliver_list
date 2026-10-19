@@ -54,9 +54,8 @@ class LayoutPass {
 
   int correctionCount = 0;
 
-  /// Scroll offset corrections allowed in this pass before the rest is
-  /// deferred to the next frame. A viewport allows 10 layout cycles per
-  /// child sliver; 3 are left for its own content dimension adjustments.
+  /// Scroll offset corrections allowed in this pass; further ones wait for the
+  /// next frame. A viewport throws after 10 layout cycles per child sliver.
   final int maxCorrectionCount;
 }
 

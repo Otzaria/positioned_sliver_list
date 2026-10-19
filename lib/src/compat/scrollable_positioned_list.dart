@@ -444,7 +444,7 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
     }
     widget.itemScrollController?._attach(this);
     widget.scrollOffsetController?._attach(this);
-    _listController.itemPositions.addListener(_updatePositions);
+    _syncPositionsListener();
   }
 
   @override
@@ -464,6 +464,7 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
   @override
   void didUpdateWidget(ScrollablePositionedList oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncPositionsListener();
     if (oldWidget.itemScrollController != widget.itemScrollController) {
       oldWidget.itemScrollController?._detach(this);
       widget.itemScrollController?._attach(this);
@@ -479,7 +480,7 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
     }
     // Listeners are told about a rebuild even when nothing moved.
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
+      if (mounted && _listeningToPositions) {
         _updatePositions(force: true);
       }
     });
@@ -489,10 +490,29 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
   void dispose() {
     _itemAnimation?.cancel();
     _offsetAnimation?.cancel();
-    _listController.itemPositions.removeListener(_updatePositions);
+    if (_listeningToPositions) {
+      _listController.itemPositions.removeListener(_updatePositions);
+    }
     _ownScrollController?.dispose();
     _listController.dispose();
     super.dispose();
+  }
+
+  bool _listeningToPositions = false;
+
+  // Positions are computed after every layout only while someone needs them.
+  void _syncPositionsListener() {
+    final needed =
+        widget.itemPositionsListener != null || widget.restorePosition;
+    if (needed == _listeningToPositions) {
+      return;
+    }
+    _listeningToPositions = needed;
+    if (needed) {
+      _listController.itemPositions.addListener(_updatePositions);
+    } else {
+      _listController.itemPositions.removeListener(_updatePositions);
+    }
   }
 
   /// Runs [start] and counts it as programmatic scrolling until it is done.

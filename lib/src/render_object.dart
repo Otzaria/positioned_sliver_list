@@ -366,6 +366,9 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
         position is ScrollPosition && position.hasContentDimensions
         ? math.min(position.minScrollExtent, origin)
         : math.min(0.0, origin);
+    if (!extent.isFinite) {
+      return _OverscrollSolution(minPixels, 0.0, 0.0);
+    }
     final room = origin - minPixels;
     final leading = math.max(0.0, -(target + room));
     final pixels = leading > 0 ? minPixels : origin + target;
@@ -1142,6 +1145,10 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
         position is ScrollPosition && position.hasContentDimensions
         ? position.minScrollExtent
         : 0.0;
+    // A shrink-wrapping viewport without a size limit shows all content.
+    if (!extent.isFinite) {
+      return minExtent;
+    }
     if (_isTrailingSliver()) {
       final maxExtent = math.max(
         minExtent,
@@ -1554,6 +1561,12 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     if (_pendingTarget != null &&
         (totalChildCount == 0 ||
             constraints.growthDirection != GrowthDirection.forward)) {
+      if (totalChildCount > 0) {
+        _log.warning(
+          "jumpToIndex is not supported for a sliver before the center "
+          "of its viewport; the jump was dropped.",
+        );
+      }
       _completePendingTarget();
     }
     final pendingTarget = _pendingTarget;

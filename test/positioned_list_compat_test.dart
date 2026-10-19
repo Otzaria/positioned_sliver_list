@@ -241,4 +241,48 @@ void main() {
       );
     });
   }
+
+  testWidgets("positions are only computed for a listener", (tester) async {
+    final controller = ItemScrollController();
+    await tester.pumpWidget(
+      _host(
+        ScrollablePositionedList.builder(
+          itemCount: 1000,
+          itemScrollController: controller,
+          itemBuilder: (context, index) =>
+              SizedBox(height: 50, child: Text("Item $index")),
+        ),
+      ),
+    );
+    controller.jumpTo(index: 500);
+    await tester.pump();
+    expect(controller.listController!.itemPositions.value, isEmpty);
+  });
+
+  testWidgets("jumpTo sends no scroll notifications when idle", (tester) async {
+    final controller = ItemScrollController();
+    final notifications = <ScrollNotification>[];
+    await tester.pumpWidget(
+      _host(
+        NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            notifications.add(notification);
+            return false;
+          },
+          child: ScrollablePositionedList.builder(
+            itemCount: 1000,
+            itemScrollController: controller,
+            itemBuilder: (context, index) =>
+                SizedBox(height: 50, child: Text("Item $index")),
+          ),
+        ),
+      ),
+    );
+    notifications.clear();
+    controller.jumpTo(index: 500);
+    await tester.pump();
+    expect(tester.getTopLeft(_text("Item 500")).dy, 0);
+    expect(notifications.whereType<ScrollStartNotification>(), isEmpty);
+    expect(notifications.whereType<ScrollEndNotification>(), isEmpty);
+  });
 }
