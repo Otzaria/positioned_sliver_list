@@ -15,6 +15,9 @@
 //
 // Run with:
 //   flutter test test/perf/win10_notification_channel_perf_test.dart
+@Tags(["perf"])
+library;
+
 import "package:flutter/rendering.dart";
 import "package:flutter/widgets.dart";
 import "package:flutter_test/flutter_test.dart";

@@ -1,8 +1,9 @@
 name: Publish to pub.dev
 
-# מופעל מדחיפת תג גרסה (release-tag.yml יוצר אותו מקומיט שהודעתו מספר בלבד),
-# ומפרסם דרך Automated publishing של pub.dev: האימות נעשה באסימון OIDC של
-# ההרצה, ולכן אין כאן שום סוד של חשבון pub.dev.
+# Runs for a version tag (release-tag.yml creates it from a commit whose
+# message is only the version) and publishes through pub.dev automated
+# publishing: authentication uses the run's OIDC token, so no pub.dev secret
+# is stored here.
 on:
   push:
     tags:
@@ -10,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  # id-token נדרש כדי שההרצה תוכל לבקש את אסימון ה-OIDC.
+  # id-token lets the run request its OIDC token.
   id-token: write
   contents: read
 
@@ -22,9 +23,9 @@ jobs:
   publish:
     name: flutter pub publish
     runs-on: ubuntu-24.04
-    # רשת ביטחון: כשל אימות אינו נכשל אלא נתלה — pub מרים שרת מקומי וממתין
-    # ל-redirect שלא יגיע לעולם, והג'וב היה מחזיק runner עד תום 6 שעות.
-    timeout-minutes: 15
+    # A failed authentication hangs instead of failing (pub waits for a
+    # redirect that never comes), so limit the job.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
 
@@ -35,30 +36,36 @@ jobs:
           set -euo pipefail
           pubspec_version="$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml | head -n 1 | tr -d '\r')"
           if [ "$TAG" != "v$pubspec_version" ]; then
-            echo "::error::התג $TAG אינו תואם ל-version: $pubspec_version שב-pubspec.yaml."
+            echo "::error::Tag $TAG does not match version $pubspec_version in pubspec.yaml."
             exit 1
           fi
-          echo "מפרסם $pubspec_version." >> "$GITHUB_STEP_SUMMARY"
+          echo "Publishing $pubspec_version." >> "$GITHUB_STEP_SUMMARY"
 
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: "3.47.2"
 
-      # ל-pub publish דרושה resolution של התלויות, ולחבילת Flutter היא נכשלת
-      # תחת dart טהור — ולכן flutter, כמו בשאר ה-workflows כאן.
+      # pub publish needs resolved dependencies, which fails for a Flutter
+      # package under plain dart.
       - name: flutter pub get
         run: flutter pub get
 
-      # ה-pub המצורף ל-Flutter אינו מבצע בעצמו את חילוף ה-OIDC מול pub.dev:
-      # הוא מתעלם מהאסימון שגיטהאב הנפיק (אימתנו שהוא זמין בשלב) ונופל למסלול
-      # ההתחברות האינטראקטיבי, שממתין ל-redirect ל-localhost עד שההרצה נהרגת.
-      # לכן מביאים את האסימון בעצמנו ורושמים אותו כאסימון של pub.dev.
+      - name: flutter analyze
+        run: flutter analyze --fatal-infos lib test
+
+      - name: flutter test (without perf benchmarks)
+        run: flutter test --exclude-tags perf
+
+      # Flutter's bundled pub does not exchange the OIDC token with pub.dev by
+      # itself and falls back to interactive login, which waits until the run
+      # is killed. Fetch the token and register it for pub.dev instead.
       - name: Authenticate to pub.dev with the run's OIDC token
         run: |
           set -euo pipefail
 
           if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
-            echo "::error::אין אסימון OIDC להרצה — ודאו ש-permissions כולל id-token: write."
+            echo "::error::The run has no OIDC token; permissions must include id-token: write."
             exit 1
           fi
 
@@ -68,11 +75,11 @@ jobs:
             | jq -r '.value')"
 
           if [ -z "$token" ] || [ "$token" = "null" ]; then
-            echo "::error::בקשת אסימון ה-OIDC נכשלה."
+            echo "::error::Requesting the OIDC token failed."
             exit 1
           fi
 
-          # מיסוך לפני כל שימוש, כדי שהאסימון לא ידלוף ללוג.
+          # Mask before any use so the token never reaches the log.
           echo "::add-mask::$token"
           echo "PUB_TOKEN=$token" >> "$GITHUB_ENV"
 

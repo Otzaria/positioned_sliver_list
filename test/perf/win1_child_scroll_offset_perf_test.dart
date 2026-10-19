@@ -12,6 +12,9 @@
 //
 // Run with:
 //   flutter test test/perf/win1_child_scroll_offset_perf_test.dart
+@Tags(["perf"])
+library;
+
 import "package:flutter_test/flutter_test.dart";
 import "package:positioned_sliver_list/positioned_sliver_list.dart";
 

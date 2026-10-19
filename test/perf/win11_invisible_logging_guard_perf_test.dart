@@ -11,6 +11,9 @@
 //
 // Run with:
 //   flutter test test/perf/win11_invisible_logging_guard_perf_test.dart
+@Tags(["perf"])
+library;
+
 import "package:flutter/widgets.dart";
 import "package:flutter_test/flutter_test.dart";
 import "package:positioned_sliver_list/positioned_sliver_list.dart";

@@ -7,6 +7,9 @@
 //
 // Run with:
 //   flutter test test/perf/win8_trailing_child_hoist_perf_test.dart
+@Tags(["perf"])
+library;
+
 import "package:flutter_test/flutter_test.dart";
 import "package:positioned_sliver_list/positioned_sliver_list.dart";
 

@@ -1,6 +1,6 @@
 name: Format Check
 
-# רץ אחרי כל קומיט (push לכל ענף) וגם ב-Pull Requests.
+# Runs for every push and pull request.
 on:
   push:
   pull_request:
@@ -23,9 +23,10 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: "3.47.2"
 
       # pub get first: the formatter's style follows the language version the
-      # resolution picks, so an unresolved tree formats differently from local.
+      # resolution picks, so an unresolved tree formats differently.
       - name: flutter pub get
         run: flutter pub get
 
@@ -38,8 +39,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # נכשל אם קובץ טקסט מנוהל מכיל CRLF — בדיוק הבעיה שפרסום ממחשב Windows יוצר.
-      # *.bat / *.cmd מוחרגים כי הם חייבים CRLF (ראו .gitattributes).
+      # Fails when a tracked text file contains CRLF, which publishing from a
+      # Windows checkout can produce. *.bat and *.cmd need CRLF.
       - name: Check for CRLF in tracked text files
         run: |
           bad=$(git ls-files -- . ':!*.bat' ':!*.cmd' ':!*.png' ':!*.jar' \
@@ -47,8 +48,8 @@ jobs:
                 if grep -lIU "$(printf '\r')" "$f" >/dev/null 2>&1; then echo "$f"; fi
               done)
           if [ -n "$bad" ]; then
-            echo "::error::הקבצים הבאים מכילים CRLF (יש להמיר ל-LF):"
+            echo "::error::These files contain CRLF line endings (convert them to LF):"
             echo "$bad"
             exit 1
           fi
-          echo "OK — כל הקבצים ב-LF."
+          echo "OK: all files use LF."

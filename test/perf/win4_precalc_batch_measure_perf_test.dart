@@ -12,6 +12,9 @@
 //
 // Run with:
 //   flutter test test/perf/win4_precalc_batch_measure_perf_test.dart
+@Tags(["perf"])
+library;
+
 import "package:flutter/widgets.dart";
 import "package:flutter_test/flutter_test.dart";
 import "package:positioned_sliver_list/positioned_sliver_list.dart";

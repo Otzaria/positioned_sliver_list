@@ -1,0 +1,5 @@
+tags:
+  # Benchmarks in test/perf compare code paths and take minutes; CI and the
+  # publish workflow run with --exclude-tags perf.
+  perf:
+    timeout: 10x
