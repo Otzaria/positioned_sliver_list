@@ -122,8 +122,8 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     int? initialIndex,
     double initialAlignment = 0.0,
     double initialOffset = 0.0,
-    bool allowOverscrollToTarget = false,
-  }) : _allowOverscrollToTarget = allowOverscrollToTarget,
+    OverscrollToTarget overscrollToTarget = OverscrollToTarget.none,
+  }) : _overscrollToTarget = overscrollToTarget,
        _initialScrollPosition = initialScrollPosition,
        _didResolveInitialScrollPosition =
            initialScrollPosition == InitialScrollPosition.start {
@@ -232,17 +232,20 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
 
   _PendingItemTarget? _pendingTarget;
 
-  bool _allowOverscrollToTarget;
+  OverscrollToTarget _overscrollToTarget;
+
+  bool get _allowOverscrollToTarget =>
+      _overscrollToTarget != OverscrollToTarget.none;
 
   /// Whether a jump may add blank space before the first or after the last
   /// item so that its target lands exactly where requested.
-  bool get allowOverscrollToTarget => _allowOverscrollToTarget;
-  set allowOverscrollToTarget(bool value) {
-    if (value == _allowOverscrollToTarget) {
+  OverscrollToTarget get overscrollToTarget => _overscrollToTarget;
+  set overscrollToTarget(OverscrollToTarget value) {
+    if (value == _overscrollToTarget) {
       return;
     }
-    _allowOverscrollToTarget = value;
-    if (!value) {
+    _overscrollToTarget = value;
+    if (value != OverscrollToTarget.always) {
       _reservedLeadingSpace = 0.0;
       _trailingSpace = 0.0;
       _pinnedIndex = null;
@@ -370,6 +373,15 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       return _OverscrollSolution(minPixels, 0.0, 0.0);
     }
     final room = origin - minPixels;
+    if (_overscrollToTarget ==
+        OverscrollToTarget.matchScrollablePositionedList) {
+      return _matchScrollablePositionedList(
+        minPixels: minPixels,
+        desired: room + target,
+        content: room + _totalExtent() + _trailingPaddingExtent(),
+        viewportExtent: finiteExtent,
+      );
+    }
     final leading = math.max(0.0, -(target + room));
     final pixels = leading > 0 ? minPixels : origin + target;
     var trailing = 0.0;
@@ -386,6 +398,37 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       clampedPixels = math.min(pixels, math.max(origin, maxPixels));
     }
     return _OverscrollSolution(clampedPixels, leading, trailing);
+  }
+
+  /// The clamping of `scrollable_positioned_list`: its viewport anchors the
+  /// target at pixel 0 and limits the scroll range to
+  /// `max(min(0, top), bottom)` and `min(top, max)`, where `top` and `bottom`
+  /// are the usual content limits (unbounded_viewport, viewport.dart:186-192).
+  /// In content coordinates ([desired] and the result measured from the start
+  /// of the content):
+  ///
+  /// - max = max(min(desired, 0), content - viewport)
+  /// - min = min(0, max)
+  ///
+  /// So the position is clamped to the content, except that content shorter
+  /// than the viewport may start below the leading edge, at most until its end
+  /// reaches the trailing edge. No space is ever added after the content.
+  _OverscrollSolution _matchScrollablePositionedList({
+    required double minPixels,
+    required double desired,
+    required double content,
+    required double viewportExtent,
+  }) {
+    final maxScroll = math.max(
+      math.min(desired, 0.0),
+      content - viewportExtent,
+    );
+    final minScroll = math.min(0.0, maxScroll);
+    final scroll = desired.clamp(minScroll, maxScroll);
+    if (scroll < 0) {
+      return _OverscrollSolution(minPixels, -scroll, 0.0);
+    }
+    return _OverscrollSolution(minPixels + scroll, 0.0, 0.0);
   }
 
   /// Blank space after the last item that the viewport currently shows.
@@ -1162,7 +1205,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
   bool _leadingSpaceChanged = false;
 
   /// Target scroll pixels for [target] laid out at [layoutOffset]. With
-  /// [allowOverscrollToTarget] this updates the blank space it needs; a
+  /// [overscrollToTarget] this updates the blank space it needs; a
   /// changed leading space is reported through [_leadingSpaceChanged].
   double? _targetPixels(double layoutOffset, _PendingItemTarget target) {
     _leadingSpaceChanged = false;
@@ -1341,6 +1384,11 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
   @override
   void performLayout() {
     final outer = super.constraints;
+    if (_overscrollToTarget == OverscrollToTarget.none) {
+      _leadingSpace = 0.0;
+      _reservedLeadingSpace = 0.0;
+      _trailingSpace = 0.0;
+    }
     if (_leadingSpace > 0 || _reservedLeadingSpace > 0) {
       final correction = _updateLeadingSpace(outer);
       if (correction != 0.0) {
@@ -1382,6 +1430,22 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
   /// part the viewport scrolled past. Returns the scroll offset correction
   /// that keeps the content in place.
   double _updateLeadingSpace(SliverConstraints outer) {
+    if (_overscrollToTarget ==
+            OverscrollToTarget.matchScrollablePositionedList &&
+        outer.viewportMainAxisExtent.isFinite) {
+      // Content that grew may no longer fit: the space shrinks so that the
+      // content's end stays at or below the trailing edge, as the original
+      // clamps.
+      final allowed = math.max(
+        0.0,
+        outer.viewportMainAxisExtent -
+            outer.precedingScrollExtent -
+            _totalExtent() -
+            _trailingPaddingExtent(),
+      );
+      _leadingSpace = math.min(_leadingSpace, allowed);
+      _reservedLeadingSpace = math.min(_reservedLeadingSpace, allowed);
+    }
     if (_reservedLeadingSpace > _leadingSpace) {
       final grow = _reservedLeadingSpace - _leadingSpace;
       _leadingSpace = _reservedLeadingSpace;
@@ -2134,7 +2198,9 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
           _relayoutWithNewLeadingSpace();
           return;
         } else {
-          _pinnedIndex = _leadingSpace > 0 || _trailingSpace > 0
+          _pinnedIndex =
+              _overscrollToTarget == OverscrollToTarget.always &&
+                  (_leadingSpace > 0 || _trailingSpace > 0)
               ? pendingIndex
               : null;
           _completePendingTarget();
@@ -2399,6 +2465,24 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       }
     }
 
+    if (_overscrollToTarget ==
+            OverscrollToTarget.matchScrollablePositionedList &&
+        _leadingSpace > 0) {
+      // Measured content that no longer fits pulls the content back up.
+      final outer = super.constraints;
+      final allowed = math.max(
+        0.0,
+        outer.viewportMainAxisExtent -
+            outer.precedingScrollExtent -
+            _totalExtent() -
+            _trailingPaddingExtent(),
+      );
+      if (_leadingSpace > allowed + _kTargetTolerance) {
+        _leadingSpace = allowed;
+        _relayoutWithNewLeadingSpace();
+        return;
+      }
+    }
     if (_trailingSpace > 0 && !holdOverscrollSpace) {
       final needed = _trailingSpaceNeeded();
       final contentChanged =

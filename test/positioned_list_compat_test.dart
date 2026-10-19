@@ -206,8 +206,8 @@ void main() {
     expect(tester.getTopLeft(_text("Item 100")).dy, closeTo(50, 0.01));
   });
 
-  for (final allow in [true, false]) {
-    testWidgets("allowOverscrollToTarget: $allow", (tester) async {
+  for (final mode in OverscrollToTarget.values) {
+    testWidgets("overscrollToTarget: ${mode.name}", (tester) async {
       final controller = ItemScrollController();
       final positions = ItemPositionsListener.create();
       await tester.pumpWidget(
@@ -216,16 +216,17 @@ void main() {
             itemCount: 1000,
             itemScrollController: controller,
             itemPositionsListener: positions,
-            allowOverscrollToTarget: allow,
+            overscrollToTarget: mode,
             itemBuilder: (context, index) =>
                 SizedBox(height: _extent(index), child: Text("Item $index")),
           ),
         ),
       );
+      final always = mode == OverscrollToTarget.always;
       controller.jumpTo(index: 999);
       await tester.pumpAndSettle();
       final last = tester.getRect(_text("Item 999"));
-      if (allow) {
+      if (always) {
         expect(last.top, closeTo(0, 0.01));
         final p = positions.itemPositions.value.single;
         expect(p.index, 999);
@@ -237,10 +238,75 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         tester.getTopLeft(_text("Item 0")).dy,
-        closeTo(allow ? 180 : 0, 0.01),
+        closeTo(always ? 180 : 0, 0.01),
       );
     });
   }
+
+  group("matchScrollablePositionedList with content shorter than the "
+      "viewport", () {
+    Future<ItemScrollController> pumpShort(
+      WidgetTester tester,
+      ValueNotifier<int> count, {
+      int initialScrollIndex = 0,
+      double initialAlignment = 0,
+    }) async {
+      final controller = ItemScrollController();
+      await tester.pumpWidget(
+        _host(
+          ValueListenableBuilder<int>(
+            valueListenable: count,
+            builder: (context, itemCount, _) =>
+                ScrollablePositionedList.builder(
+                  itemCount: itemCount,
+                  itemScrollController: controller,
+                  initialScrollIndex: initialScrollIndex,
+                  initialAlignment: initialAlignment,
+                  itemBuilder: (context, index) =>
+                      SizedBox(height: 50, child: Text("Item $index")),
+                ),
+          ),
+        ),
+      );
+      return controller;
+    }
+
+    testWidgets("an alignment may push the content down", (tester) async {
+      final count = ValueNotifier(4);
+      addTearDown(count.dispose);
+      await pumpShort(tester, count, initialAlignment: 0.5);
+      expect(tester.getTopLeft(_text("Item 0")).dy, closeTo(300, 0.01));
+    });
+
+    testWidgets("at most until the content ends at the trailing edge", (
+      tester,
+    ) async {
+      final count = ValueNotifier(4);
+      addTearDown(count.dispose);
+      final controller = await pumpShort(tester, count);
+      controller.jumpTo(index: 0, alignment: 0.9);
+      await tester.pumpAndSettle();
+      // 4 items of 50 px end at the bottom of the 600 px viewport.
+      expect(tester.getTopLeft(_text("Item 0")).dy, closeTo(400, 0.01));
+      controller.jumpTo(index: 3, alignment: 0);
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(_text("Item 0")).dy, closeTo(0, 0.01));
+    });
+
+    testWidgets("space that no longer fits is removed when items are added", (
+      tester,
+    ) async {
+      final count = ValueNotifier(4);
+      addTearDown(count.dispose);
+      await pumpShort(tester, count, initialAlignment: 0.5);
+      count.value = 8;
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(_text("Item 0")).dy, closeTo(200, 0.01));
+      count.value = 40;
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(_text("Item 0")).dy, closeTo(0, 0.01));
+    });
+  });
 
   testWidgets("positions are only computed for a listener", (tester) async {
     final controller = ItemScrollController();

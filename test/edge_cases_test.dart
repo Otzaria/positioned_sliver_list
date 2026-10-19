@@ -661,8 +661,7 @@ void main() {
       );
       c.jumpTo(index: 299);
       await tester.pump();
-      // allowOverscrollToTarget (on by default) puts the last item at the top.
-      expect(tester.getTopLeft(_text("Item 299")).dy, closeTo(0, 0.5));
+      expect(tester.getBottomLeft(_text("Item 299")).dy, closeTo(_h, 0.5));
       c.jumpTo(index: 150, offset: -_extent(150) - 5);
       await tester.pump();
       final a = c.anchor!;

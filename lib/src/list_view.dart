@@ -42,7 +42,7 @@ class SuperListView extends BoxScrollView {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
-    this.allowOverscrollToTarget = false,
+    this.overscrollToTarget = OverscrollToTarget.none,
   }) : childrenDelegate = SliverChildListDelegate(
          children,
          addAutomaticKeepAlives: addAutomaticKeepAlives,
@@ -83,7 +83,7 @@ class SuperListView extends BoxScrollView {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
-    this.allowOverscrollToTarget = false,
+    this.overscrollToTarget = OverscrollToTarget.none,
   }) : assert(itemCount == null || itemCount >= 0),
        assert(semanticChildCount == null || semanticChildCount <= itemCount!),
        childrenDelegate = SliverChildBuilderDelegate(
@@ -128,7 +128,7 @@ class SuperListView extends BoxScrollView {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
-    this.allowOverscrollToTarget = false,
+    this.overscrollToTarget = OverscrollToTarget.none,
   }) : assert(itemCount >= 0),
        childrenDelegate = SliverChildBuilderDelegate(
          (BuildContext context, int index) {
@@ -176,7 +176,7 @@ class SuperListView extends BoxScrollView {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
-    this.allowOverscrollToTarget = false,
+    this.overscrollToTarget = OverscrollToTarget.none,
   });
 
   /// A delegate that provides the children for the [ListView].
@@ -229,8 +229,8 @@ class SuperListView extends BoxScrollView {
   /// Pixels added to [initialAlignment].
   final double initialOffset;
 
-  /// See [SuperSliverList.allowOverscrollToTarget].
-  final bool allowOverscrollToTarget;
+  /// See [SuperSliverList.overscrollToTarget].
+  final OverscrollToTarget overscrollToTarget;
 
   @override
   Widget buildChildLayout(BuildContext context) {
@@ -244,7 +244,7 @@ class SuperListView extends BoxScrollView {
       initialIndex: initialIndex,
       initialAlignment: initialAlignment,
       initialOffset: initialOffset,
-      allowOverscrollToTarget: allowOverscrollToTarget,
+      overscrollToTarget: overscrollToTarget,
     );
   }
 

@@ -49,7 +49,7 @@ class _Harness {
                 SuperSliverList.builder(
                   listController: listController,
                   itemCount: itemCount.value,
-                  allowOverscrollToTarget: true,
+                  overscrollToTarget: OverscrollToTarget.always,
                   initialIndex: initialIndex,
                   initialAlignment: initialAlignment,
                   extentEstimation: (_, _) => 50,

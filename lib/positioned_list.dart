@@ -5,4 +5,4 @@ library;
 export "src/compat/scrollable_positioned_list.dart";
 export "src/item_position.dart";
 export "src/super_sliver_list.dart"
-    show AnimationHandle, ListController, SuperSliverList;
+    show AnimationHandle, ListController, OverscrollToTarget, SuperSliverList;

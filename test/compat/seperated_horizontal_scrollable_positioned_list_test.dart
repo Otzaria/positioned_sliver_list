@@ -259,10 +259,7 @@ double _screenProportion({
     screenHeight;
 
 // Tests of the original that check its internals; the reason is printed.
-const _skipped = <String, String>{
-  'padding test - centered sliver at left':
-      'the original clamps to the content when the content after (or before) the target fills the viewport; this layer leaves blank space instead (allowOverscrollToTarget, on by default)',
-};
+const _skipped = <String, String>{};
 
 void testWidgets(
   String description,

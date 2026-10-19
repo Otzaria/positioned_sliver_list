@@ -190,6 +190,24 @@ class _CompletedOperation implements PositioningOperation {
   void cancel() {}
 }
 
+/// Whether a jump to an index may leave blank space where the content does
+/// not reach, so that the target lands exactly at its alignment.
+enum OverscrollToTarget {
+  /// Positions are clamped to the content: the last item cannot be moved to
+  /// the top of the viewport.
+  none,
+
+  /// As `scrollable_positioned_list`: positions are clamped to the content,
+  /// except that when all content is shorter than the viewport it may be
+  /// pushed down, at most until its end reaches the viewport's trailing edge.
+  matchScrollablePositionedList,
+
+  /// Blank space is added before the first or after the last item as needed,
+  /// so the target always lands exactly; it shrinks as the user scrolls back
+  /// towards the content.
+  always,
+}
+
 /// Controls where the viewport should be positioned during the first layout
 /// of a list.
 enum InitialScrollPosition {
@@ -286,7 +304,7 @@ class ListController extends ChangeNotifier {
   ListAnchor? get anchor => _delegate?.delegate.currentAnchor;
 
   /// Blank space currently added before the first and after the last item by
-  /// a jump with [SuperSliverList.allowOverscrollToTarget].
+  /// a jump with [SuperSliverList.overscrollToTarget].
   ({double leading, double trailing}) get overscrollSpace =>
       _delegate?.delegate.overscrollSpace ?? (leading: 0.0, trailing: 0.0);
 
@@ -829,7 +847,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
-    this.allowOverscrollToTarget = false,
+    this.overscrollToTarget = OverscrollToTarget.none,
   });
 
   /// Creates a SuperSliverList from widget builder.
@@ -849,7 +867,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
-    this.allowOverscrollToTarget = false,
+    this.overscrollToTarget = OverscrollToTarget.none,
     bool addAutomaticKeepAlives = true,
     bool addRepaintBoundaries = true,
     bool addSemanticIndexes = true,
@@ -882,7 +900,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
-    this.allowOverscrollToTarget = false,
+    this.overscrollToTarget = OverscrollToTarget.none,
     int? itemCount,
     bool addAutomaticKeepAlives = true,
     bool addRepaintBoundaries = true,
@@ -933,7 +951,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
-    this.allowOverscrollToTarget = false,
+    this.overscrollToTarget = OverscrollToTarget.none,
     bool addAutomaticKeepAlives = true,
     bool addRepaintBoundaries = true,
     bool addSemanticIndexes = true,
@@ -998,16 +1016,16 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
   /// Pixels added to [initialAlignment].
   final double initialOffset;
 
-  /// Whether a jump or animation to an index (and [initialIndex]) may add
+  /// Whether a jump or animation to an index (and [initialIndex]) may leave
   /// blank space before the first or after the last item so that the target
-  /// lands exactly where requested, for example the last item at the top of
-  /// the viewport.
+  /// lands exactly where requested. See [OverscrollToTarget].
   ///
-  /// The space only shrinks when the user scrolls back towards the content,
-  /// and is gone once the viewport is back within the content. Content
-  /// appended at the end uses it up. The next programmatic jump computes it
-  /// again. Intended for a list that is the only sliver of its viewport.
-  final bool allowOverscrollToTarget;
+  /// With [OverscrollToTarget.always] the space only shrinks when the user
+  /// scrolls back towards the content, and is gone once the viewport is back
+  /// within the content. Content appended at the end uses it up. The next
+  /// programmatic jump computes it again. Intended for a list that is the only
+  /// sliver of its viewport.
+  final OverscrollToTarget overscrollToTarget;
 
   static SuperSliverListLayoutBudget layoutBudget =
       _TimeSuperSliverListLayoutBudget(budget: const Duration(milliseconds: 3));
@@ -1029,7 +1047,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
       initialIndex: initialIndex,
       initialAlignment: initialAlignment,
       initialOffset: initialOffset,
-      allowOverscrollToTarget: allowOverscrollToTarget,
+      overscrollToTarget: overscrollToTarget,
     );
   }
 
@@ -1046,7 +1064,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     renderSliverList.delayPopulatingCacheArea = delayPopulatingCacheArea;
     renderSliverList.layoutKeptAliveChildren = layoutKeptAliveChildren;
     renderSliverList.initialScrollPosition = initialScrollPosition;
-    renderSliverList.allowOverscrollToTarget = allowOverscrollToTarget;
+    renderSliverList.overscrollToTarget = overscrollToTarget;
   }
 }
 

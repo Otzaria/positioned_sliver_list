@@ -127,7 +127,11 @@ await handle;
 
 `SuperSliverList(initialIndex: ..., initialAlignment: ..., initialOffset: ...)` applies such a position during the first layout.
 
-By default a target is clamped to the scroll range: the last item cannot be moved to the top of the viewport. With `SuperSliverList(allowOverscrollToTarget: true)` a jump, an animation or the initial position adds blank space after the last item or before the first item, so the target lands exactly where requested:
+By default a target is clamped to the scroll range: the last item cannot be moved to the top of the viewport. `SuperSliverList(overscrollToTarget: ...)` changes that:
+
+- `OverscrollToTarget.none` (default): clamped to the content.
+- `OverscrollToTarget.matchScrollablePositionedList`: clamped like `scrollable_positioned_list`. Content shorter than the viewport may be pushed down by the alignment, at most until its end reaches the trailing edge; otherwise the position is clamped to the content.
+- `OverscrollToTarget.always`: a jump, an animation or the initial position adds blank space after the last item or before the first item, so the target always lands exactly where requested:
 
 - The space is part of the scroll extent while it exists, so the `ScrollController` and a `Scrollbar` stay consistent.
 - It shrinks as the user scrolls or flings back towards the content and never grows again from user scrolling; it is gone once the viewport is back within the content. The next programmatic jump computes it again.
@@ -172,12 +176,12 @@ await itemScrollController.scrollTo(index: 9000, duration: const Duration(millis
 
 Provide `estimateExtent` when you can: items that were never laid out are estimated at 100 pixels otherwise, which makes the scrollbar less steady (jumps are exact either way).
 
-Additions to the original API: `scrollController`, `estimateExtent`, `estimatedSeparatorExtent`, `initialOffset`, `restorePosition`, `allowOverscrollToTarget`, an `offset` for `jumpTo`/`scrollTo`, `ItemScrollController.scrollController`/`listController`/`anchor`, and `ScrollOffsetController.jumpBy`/`isAttached`.
+Additions to the original API: `scrollController`, `estimateExtent`, `estimatedSeparatorExtent`, `initialOffset`, `restorePosition`, `overscrollToTarget`, an `offset` for `jumpTo`/`scrollTo`, `ItemScrollController.scrollController`/`listController`/`anchor`, and `ScrollOffsetController.jumpBy`/`isAttached`.
 
 Behavior that differs from `scrollable_positioned_list`:
 
 - There is a single list. `scrollTo` to a distant item jumps to about one viewport before it and animates from there; there is no cross-fade, and `opacityAnimationWeights` is ignored. The trajectory of the animation therefore differs.
-- `allowOverscrollToTarget` (on by default) lets a target land where the content does not reach, for example the last item at the top, by adding blank space that shrinks as the user scrolls back. The original allowed this only when the content could not fill the viewport and otherwise clamped (or sprang back) to the content; pass `allowOverscrollToTarget: false` for clamping.
+- `overscrollToTarget` defaults to `OverscrollToTarget.matchScrollablePositionedList`, which reproduces how the original clamps at the edges: content shorter than the viewport may start below the leading edge, at most until its end reaches the trailing edge, and otherwise the last item cannot be moved above the trailing edge nor the first below the leading edge. `OverscrollToTarget.always` lets every target land exactly, for example the last item at the top of the viewport, with blank space that shrinks as the user scrolls back.
 - Saving the position to `PageStorage` is opt-in (`restorePosition: true`).
 - The cache area around a jump target is filled one frame after the jump.
 - `ScrollOffsetListener` reports scroll movements only; layout corrections (exact landing, anchoring) are not reported.
