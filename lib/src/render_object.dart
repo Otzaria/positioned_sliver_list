@@ -19,12 +19,6 @@ import "super_sliver_list.dart";
 
 final _log = Logger("SuperSliverList");
 
-/// Maximum number of scroll-offset corrections allowed in a single layout pass
-/// before we give up and defer to the next frame. Flutter's [RenderViewport]
-/// allows at most 10 layout cycles; exceeding that throws. We cap at 7 to
-/// leave headroom for other slivers that may also need corrections.
-const _kMaxCorrectionCount = 7;
-
 /// Pixels within which a pending item target counts as reached.
 const _kTargetTolerance = 1e-3;
 
@@ -1250,7 +1244,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     // around it are built.
     if (pendingTarget != null &&
         _liveChildForIndex(pendingIndex!) == null &&
-        layoutPass.correctionCount < _kMaxCorrectionCount) {
+        layoutPass.correctionCount < layoutPass.maxCorrectionCount) {
       final pixels = _pixelsForItemOffset(
         _extentManager.offsetForIndex(pendingIndex),
         pendingTarget.alignment,
@@ -1792,7 +1786,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
             ? 0.0
             : pixels - getViewport()!.offset.pixels;
         if (correction.abs() > _kTargetTolerance) {
-          if (layoutPass.correctionCount < _kMaxCorrectionCount) {
+          if (layoutPass.correctionCount < layoutPass.maxCorrectionCount) {
             ++layoutPass.correctionCount;
             geometry = SliverGeometry(scrollOffsetCorrection: correction);
             childManager.didFinishLayout();
@@ -1990,7 +1984,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     // position policy, not its extent bookkeeping, with the header constraint.
     scrollCorrection = _headerCorrection() ?? scrollCorrection;
     if (scrollCorrection.abs() > precisionErrorTolerance) {
-      if (layoutPass.correctionCount >= _kMaxCorrectionCount) {
+      if (layoutPass.correctionCount >= layoutPass.maxCorrectionCount) {
         _log.fine(
           () =>
               "Dropping accumulated scroll correction "
@@ -2027,7 +2021,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     }
 
     if (correction.abs() > precisionErrorTolerance) {
-      if (layoutPass.correctionCount >= _kMaxCorrectionCount) {
+      if (layoutPass.correctionCount >= layoutPass.maxCorrectionCount) {
         _log.fine(
           () =>
               "Dropping invisible/kept-alive correction "

@@ -1,3 +1,5 @@
+import "dart:math" as math;
+
 import "package:collection/collection.dart";
 import "package:flutter/rendering.dart";
 
@@ -16,6 +18,7 @@ class LayoutPass {
     required this.initialScrollPosition,
     required this.childScrollOffsetEstimation,
     required this.sliverWithOffsetEstimation,
+    required this.maxCorrectionCount,
   });
 
   bool isNew = true;
@@ -49,6 +52,11 @@ class LayoutPass {
   final _sliverLayoutState = <RenderSuperSliverList, SliverLayoutState>{};
 
   int correctionCount = 0;
+
+  /// Scroll offset corrections allowed in this pass before the rest is
+  /// deferred to the next frame. A viewport allows 10 layout cycles per
+  /// child sliver; 3 are left for its own content dimension adjustments.
+  final int maxCorrectionCount;
 }
 
 final _viewportToLayoutPass = Expando<LayoutPass>();
@@ -116,6 +124,7 @@ extension RenderSliverLayoutPass on RenderSliver {
         initialScrollPosition: viewport.offset.pixels,
         childScrollOffsetEstimation: sliverWithOffsetEstimation != null,
         sliverWithOffsetEstimation: sliverWithOffsetEstimation,
+        maxCorrectionCount: math.max(7, 10 * viewport.childCount - 3),
       );
       _viewportToLayoutPass[viewport] = pass;
       Future.microtask(() {
