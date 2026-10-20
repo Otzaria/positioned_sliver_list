@@ -8,22 +8,37 @@ import "extent_list.dart";
 import "header_anchor.dart";
 import "item_position.dart";
 import "stick_target.dart";
+import "target_rect.dart";
 
 abstract class ExtentManagerDelegate {
   const ExtentManagerDelegate();
 
   void onMarkNeedsLayout();
   HeaderAnchorHandle? preserveHeader(RenderBox header) => null;
-  Future<void> jumpToIndex(int index, double alignment, double offset) =>
-      Future<void>.value();
-  double? pixelsForIndex(int index, double alignment, double offset) => null;
+  Future<void> jumpToIndex(
+    int index,
+    double alignment,
+    double offset, {
+    TargetRectResolver? targetRectResolver,
+  }) => Future<void>.value();
+  double? pixelsForIndex(
+    int index,
+    double alignment,
+    double offset, {
+    TargetRectResolver? targetRectResolver,
+  }) => null;
   int? indexForScrollOffset(double pixels) => null;
   ListAnchor? get currentAnchor => null;
   List<ItemPosition>? computeItemPositions() => null;
   void requestItemPositions() {}
   bool get hasPendingTarget => false;
   ScrollPosition? get scrollPosition => null;
-  void reserveOverscrollSpace(int index, double alignment, double offset) {}
+  void reserveOverscrollSpace(
+    int index,
+    double alignment,
+    double offset, {
+    TargetRectResolver? targetRectResolver,
+  }) {}
   set holdOverscrollSpace(bool value) {}
   ({double leading, double trailing}) get overscrollSpace =>
       (leading: 0.0, trailing: 0.0);

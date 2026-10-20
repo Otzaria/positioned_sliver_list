@@ -12,6 +12,9 @@ import "item_position.dart";
 import "layout_budget.dart";
 import "render_object.dart";
 import "stick_target.dart";
+import "target_rect.dart";
+
+export "target_rect.dart";
 
 final _log = Logger("SuperSliverList");
 
@@ -104,6 +107,7 @@ class _ScrollToIndex implements PositioningOperation {
     required this.index,
     required this.alignment,
     required this.offset,
+    this.targetRectResolver,
   });
 
   final ListController controller;
@@ -111,6 +115,7 @@ class _ScrollToIndex implements PositioningOperation {
   final int index;
   final double alignment;
   final double offset;
+  final TargetRectResolver? targetRectResolver;
   final _completer = Completer<void>();
   TargetScrollAnimation? _animation;
 
@@ -130,6 +135,7 @@ class _ScrollToIndex implements PositioningOperation {
       index,
       alignment,
       offset,
+      targetRectResolver: targetRectResolver,
     );
   }
 
@@ -137,7 +143,12 @@ class _ScrollToIndex implements PositioningOperation {
     final list = controller._delegate?.delegate;
     // Blank space the target needs must exist before the animation can reach
     // it, and must not shrink while the animation moves through content.
-    list?.reserveOverscrollSpace(index, alignment, offset);
+    list?.reserveOverscrollSpace(
+      index,
+      alignment,
+      offset,
+      targetRectResolver: targetRectResolver,
+    );
     list?.holdOverscrollSpace = true;
     final animation = TargetScrollAnimation.start(
       position: position,
@@ -151,7 +162,12 @@ class _ScrollToIndex implements PositioningOperation {
       delegate?.delegate.holdOverscrollSpace = false;
       if (animation.reachedTarget && _isCurrent && delegate != null) {
         delegate.delegate
-            .jumpToIndex(index, alignment, offset)
+            .jumpToIndex(
+              index,
+              alignment,
+              offset,
+              targetRectResolver: targetRectResolver,
+            )
             .whenComplete(_complete);
       } else {
         _complete();
@@ -337,6 +353,8 @@ class ListController extends ChangeNotifier {
   /// painted, and is exact even when the extents of the items in between have
   /// only been estimated. Only the items around the target are built. The
   /// position is clamped to the scroll range.
+  /// [targetRectResolver] can select an area inside the laid-out target item;
+  /// its leading edge uses the same viewport alignment as a whole item.
   ///
   /// The returned future completes after that layout, or when the jump is
   /// replaced or canceled.
@@ -344,6 +362,7 @@ class ListController extends ChangeNotifier {
     int index, {
     double alignment = 0.0,
     double offset = 0.0,
+    TargetRectResolver? targetRectResolver,
   }) {
     assert(_delegate != null, "ListController is not attached.");
     if (_delegate == null) {
@@ -360,7 +379,12 @@ class ListController extends ChangeNotifier {
         (delegate as ScrollActivityDelegate).goIdle();
       }
     }
-    return _delegate!.delegate.jumpToIndex(index, alignment, offset);
+    return _delegate!.delegate.jumpToIndex(
+      index,
+      alignment,
+      offset,
+      targetRectResolver: targetRectResolver,
+    );
   }
 
   /// Animates until the leading edge of the item at [index] is at [alignment]
@@ -377,6 +401,7 @@ class ListController extends ChangeNotifier {
     int index, {
     double alignment = 0.0,
     double offset = 0.0,
+    TargetRectResolver? targetRectResolver,
     required Duration duration,
     Curve curve = Curves.linear,
   }) {
@@ -390,7 +415,12 @@ class ListController extends ChangeNotifier {
         duration <= Duration.zero) {
       return AnimationHandle._([
         _CompletedOperation(
-          jumpToIndex(index, alignment: alignment, offset: offset),
+          jumpToIndex(
+            index,
+            alignment: alignment,
+            offset: offset,
+            targetRectResolver: targetRectResolver,
+          ),
         ),
       ]);
     }
@@ -402,6 +432,7 @@ class ListController extends ChangeNotifier {
       index: index,
       alignment: alignment,
       offset: offset,
+      targetRectResolver: targetRectResolver,
     );
     _animations.add(operation);
     operation.start(position, duration, curve);
@@ -422,9 +453,9 @@ class ListController extends ChangeNotifier {
 
   /// Preserves a mounted descendant header's viewport Y during size changes.
   ///
-  /// Supported for a forward, vertical, single-list viewport (including sliver
-  /// padding). Returns null for an unsupported or detached header. The caller
-  /// must stop scroll activity and cancel the handle on new user scroll input.
+  /// Supports a forward, vertical, single-list viewport, including shrink wrap
+  /// and sliver padding. Returns null for an unsupported or detached header.
+  /// Stop scroll activity and cancel the handle on new user scroll input.
   /// No off-screen items are materialized to locate the header.
   HeaderAnchorHandle? preserveHeader(RenderBox header) {
     cancelPositioning();

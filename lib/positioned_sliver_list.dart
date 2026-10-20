@@ -9,3 +9,4 @@ export "src/sliver_extensions.dart";
 export "src/stick_target.dart";
 export "src/stick_to_target.dart";
 export "src/super_sliver_list.dart";
+export "src/target_rect.dart";

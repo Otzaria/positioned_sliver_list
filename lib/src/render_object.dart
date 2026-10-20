@@ -44,12 +44,14 @@ class _PendingItemTarget {
     required this.alignment,
     required this.offset,
     required this.owner,
+    this.targetRectResolver,
   });
 
   final int index;
   final double alignment;
   final double offset;
   final Object owner;
+  final TargetRectResolver? targetRectResolver;
   final completer = Completer<void>();
 }
 
@@ -475,7 +477,12 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
 
   /// Requests the blank space a jump to [index] needs before an animation to
   /// it starts, so the animation can reach the target.
-  void reserveOverscrollSpace(int index, double alignment, double offset) {
+  void reserveOverscrollSpace(
+    int index,
+    double alignment,
+    double offset, {
+    TargetRectResolver? targetRectResolver,
+  }) {
     if (!_allowOverscrollToTarget || !attached || geometry == null) {
       return;
     }
@@ -487,7 +494,8 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       final clamped = index.clamp(0, count - 1);
       final child = _liveChildForIndex(clamped);
       final layoutOffset = child != null
-          ? childScrollOffset(child)!
+          ? childScrollOffset(child)! +
+                _targetOffsetInItem(clamped, child, targetRectResolver)
           : _extentManager.offsetForIndex(clamped);
       return _solveOverscroll(layoutOffset, alignment, offset);
     });
@@ -504,7 +512,12 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
   ///
   /// The returned future completes once the target was reached, replaced or
   /// canceled.
-  Future<void> jumpToIndex(int index, double alignment, double offset) {
+  Future<void> jumpToIndex(
+    int index,
+    double alignment,
+    double offset, {
+    TargetRectResolver? targetRectResolver,
+  }) {
     _completePendingTarget();
     _childScrollOffsetEstimation = null;
     final target = _PendingItemTarget(
@@ -512,6 +525,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       alignment: alignment,
       offset: offset,
       owner: _extentManager.beginReveal(),
+      targetRectResolver: targetRectResolver,
     );
     _pendingTarget = target;
     if (_extentManager.isLocked) {
@@ -551,9 +565,8 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
   HeaderAnchorHandle? _headerAnchorHandle;
   double _headerViewportY = 0;
 
-  /// This first implementation supports a sole vertical list, optionally
-  /// wrapped in padding. Other slivers can change range after our layout and
-  /// require viewport-level coordination, so reject them instead of guessing.
+  /// Other slivers can change range after this list's layout, so only a sole
+  /// vertical list with optional padding supports the header constraint.
   HeaderAnchorHandle? preserveHeader(RenderBox header) {
     _headerAnchorHandle?.cancel();
     final viewport = getViewport();
@@ -568,7 +581,9 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     var supported = true;
     void check(RenderObject object) {
       if (identical(object, this)) return;
-      if (object is RenderViewport || object is RenderSliverPadding) {
+      if (object is RenderViewport ||
+          object is RenderShrinkWrappingViewport ||
+          object is RenderSliverPadding) {
         object.visitChildren(check);
       } else {
         supported = false;
@@ -1236,8 +1251,19 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
   /// Target scroll pixels for [target] laid out at [layoutOffset]. With
   /// [overscrollToTarget] this updates the blank space it needs; a
   /// changed leading space is reported through [_leadingSpaceChanged].
-  double? _targetPixels(double layoutOffset, _PendingItemTarget target) {
+  double? _targetPixels(
+    double layoutOffset,
+    _PendingItemTarget target, {
+    RenderBox? child,
+  }) {
     _leadingSpaceChanged = false;
+    if (child != null) {
+      layoutOffset += _targetOffsetInItem(
+        _indexOf(child),
+        child,
+        target.targetRectResolver,
+      );
+    }
     if (!_allowOverscrollToTarget) {
       return _pixelsForItemOffset(
         layoutOffset,
@@ -1271,7 +1297,12 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
   /// Scroll pixels that put the leading edge of the item at [index] at
   /// [alignment] of the viewport plus [offset] pixels. Exact for laid out
   /// items, estimated otherwise. Null before the first layout.
-  double? pixelsForIndex(int index, double alignment, double offset) {
+  double? pixelsForIndex(
+    int index,
+    double alignment,
+    double offset, {
+    TargetRectResolver? targetRectResolver,
+  }) {
     if (!attached || geometry == null || _extentManager.isLocked) {
       return null;
     }
@@ -1284,13 +1315,32 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     return _inContentSpace(() {
       final child = _liveChildForIndex(clamped);
       final layoutOffset = child != null
-          ? childScrollOffset(child)!
+          ? childScrollOffset(child)! +
+                _targetOffsetInItem(clamped, child, targetRectResolver)
           : _extentManager.offsetForIndex(clamped);
       if (_allowOverscrollToTarget) {
         return _solveOverscroll(layoutOffset, alignment, offset)?.pixels;
       }
       return _pixelsForItemOffset(layoutOffset, alignment, offset);
     });
+  }
+
+  double _targetOffsetInItem(
+    int index,
+    RenderBox child,
+    TargetRectResolver? resolver,
+  ) {
+    final rect = resolver?.call(index, child);
+    if (rect == null) return 0;
+    if (!rect.isFinite) {
+      throw ArgumentError.value(rect, "targetRect", "Must be finite.");
+    }
+    return switch (constraints.axisDirection) {
+      AxisDirection.down => rect.top,
+      AxisDirection.up => child.size.height - rect.bottom,
+      AxisDirection.right => rect.left,
+      AxisDirection.left => child.size.width - rect.right,
+    };
   }
 
   /// The first at least partially visible item and the distance from its
@@ -2304,7 +2354,11 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     if (pendingTarget != null) {
       final child = _liveChildForIndex(pendingIndex!);
       if (child != null) {
-        final pixels = _targetPixels(childScrollOffset(child)!, pendingTarget);
+        final pixels = _targetPixels(
+          childScrollOffset(child)!,
+          pendingTarget,
+          child: child,
+        );
         final correction = pixels == null
             ? 0.0
             : pixels - getViewport()!.offset.pixels;

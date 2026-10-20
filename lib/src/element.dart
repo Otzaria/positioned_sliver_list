@@ -60,17 +60,36 @@ class SuperSliverMultiBoxAdaptorElement extends SliverMultiBoxAdaptorElement
   }
 
   @override
-  Future<void> jumpToIndex(int index, double alignment, double offset) {
+  Future<void> jumpToIndex(
+    int index,
+    double alignment,
+    double offset, {
+    TargetRectResolver? targetRectResolver,
+  }) {
     if (!_hasRenderObject) {
       return Future<void>.value();
     }
-    return renderObject.jumpToIndex(index, alignment, offset);
+    return renderObject.jumpToIndex(
+      index,
+      alignment,
+      offset,
+      targetRectResolver: targetRectResolver,
+    );
   }
 
   @override
-  double? pixelsForIndex(int index, double alignment, double offset) =>
-      _hasRenderObject
-      ? renderObject.pixelsForIndex(index, alignment, offset)
+  double? pixelsForIndex(
+    int index,
+    double alignment,
+    double offset, {
+    TargetRectResolver? targetRectResolver,
+  }) => _hasRenderObject
+      ? renderObject.pixelsForIndex(
+          index,
+          alignment,
+          offset,
+          targetRectResolver: targetRectResolver,
+        )
       : null;
 
   @override
@@ -93,9 +112,19 @@ class SuperSliverMultiBoxAdaptorElement extends SliverMultiBoxAdaptorElement
   }
 
   @override
-  void reserveOverscrollSpace(int index, double alignment, double offset) {
+  void reserveOverscrollSpace(
+    int index,
+    double alignment,
+    double offset, {
+    TargetRectResolver? targetRectResolver,
+  }) {
     if (_hasRenderObject) {
-      renderObject.reserveOverscrollSpace(index, alignment, offset);
+      renderObject.reserveOverscrollSpace(
+        index,
+        alignment,
+        offset,
+        targetRectResolver: targetRectResolver,
+      );
     }
   }
 
