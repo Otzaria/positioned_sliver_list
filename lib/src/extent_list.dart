@@ -230,6 +230,19 @@ class ExtentList {
     _cleanRangeEnd = null;
   }
 
+  void refreshEstimates(double Function(int? index) estimate) {
+    final uniform = estimate(null);
+    var total = 0.0;
+    for (var index = 0; index < length; index++) {
+      final extent = uniform > 0 ? uniform : estimate(index);
+      _extents[index] = extent;
+      total += extent;
+    }
+    _totalExtent = total;
+    _fenwickTree = null;
+    markAllDirty();
+  }
+
   void markDirty(int index) {
     assert(_extents.length == _dirty.length);
     assert(index >= 0 && index < _extents.length);
@@ -293,7 +306,7 @@ class ExtentList {
     if (SuperSliverListPerfFlags.incrementalFenwick &&
         wasLast &&
         _fenwickTree != null) {
-      // Removing the last element only truncates the tree (O(1)).
+      // Large truncations also release excess backing capacity.
       _fenwickTree!.truncate(index);
     } else {
       _fenwickTree = null;
@@ -400,7 +413,7 @@ class ExtentList {
     if (SuperSliverListPerfFlags.incrementalFenwick && _fenwickTree != null) {
       final tree = _fenwickTree!;
       if (newSize < prevSize) {
-        // Shrinking only truncates the tree (O(1)).
+        // Large truncations also release excess backing capacity.
         tree.truncate(newSize);
       } else if (newSize > prevSize) {
         final added = newSize - prevSize;

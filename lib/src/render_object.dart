@@ -116,6 +116,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     required super.childManager,
     ExtentPrecalculationPolicy? extentPrecalculationPolicy,
     required this.estimateExtent,
+    Object? estimationKey,
     required this.delayPopulatingCacheArea,
     required this.layoutKeptAliveChildren,
     required InitialScrollPosition initialScrollPosition,
@@ -123,7 +124,8 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     double initialAlignment = 0.0,
     double initialOffset = 0.0,
     OverscrollToTarget overscrollToTarget = OverscrollToTarget.none,
-  }) : _overscrollToTarget = overscrollToTarget,
+  }) : _estimationKey = estimationKey,
+       _overscrollToTarget = overscrollToTarget,
        _initialScrollPosition = initialScrollPosition,
        _didResolveInitialScrollPosition =
            initialScrollPosition == InitialScrollPosition.start {
@@ -154,6 +156,16 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
 
   ExtentPrecalculationPolicy? _extentPrecalculationPolicy;
   ExtentEstimationProvider estimateExtent;
+  Object? _estimationKey;
+
+  Object? get estimationKey => _estimationKey;
+  set estimationKey(Object? value) {
+    if (value == _estimationKey) return;
+    _estimationKey = value;
+    _extentManager.markAllDirty();
+    markNeedsLayout();
+  }
+
   bool delayPopulatingCacheArea;
   bool layoutKeptAliveChildren = false;
   InitialScrollPosition _initialScrollPosition;
@@ -1409,6 +1421,22 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     return estimateExtent(index, constraints.crossAxisExtent);
   }
 
+  int? indexForScrollOffset(double pixels) {
+    if (!attached ||
+        geometry == null ||
+        !pixels.isFinite ||
+        _extentManager.isLocked ||
+        _extentManager.numberOfItems == 0 ||
+        constraints.growthDirection != GrowthDirection.forward) {
+      return null;
+    }
+    final origin = getOffsetToReveal(0, 0, estimationOnly: true);
+    final contentOffset = pixels - origin;
+    return contentOffset < 0
+        ? null
+        : _extentManager.indexForOffset(contentOffset);
+  }
+
   @override
   void performLayout() {
     final outer = super.constraints;
@@ -1466,6 +1494,9 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
             scrollOffset: outer.scrollOffset,
           );
     _scheduleItemPositionsUpdate();
+    if (geometry!.scrollOffsetCorrection == null) {
+      _extentManager.completeEstimateUpdates();
+    }
   }
 
   /// Scroll correction that keeps the visible content in place when the
@@ -1651,15 +1682,12 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     layoutState.extentRevision ??= _extentManager.extentRevision;
     _extentManager.resize(totalChildCount);
 
-    final bool crossAxisResizing;
-
     if (previousConstraints != null &&
         previousConstraints!.crossAxisExtent != constraints.crossAxisExtent) {
       _extentManager.markAllDirty();
-      crossAxisResizing = true;
-    } else {
-      crossAxisResizing = false;
+      layoutState.crossAxisResizing = true;
     }
+    final crossAxisResizing = layoutState.crossAxisResizing;
 
     // Layout can be called multiple times, make sure we don't overwrite
     // previousConstraints during same layout pass.
@@ -1670,6 +1698,30 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
 
     childManager.didStartLayout();
     childManager.setDidUnderflow(false);
+
+    if (_extentManager.hasPendingEstimateUpdates) {
+      final child = firstChild;
+      final oldOffset = child == null
+          ? null
+          : _parentDataOf(child).layoutOffset;
+      _extentManager.applyPendingEstimateUpdates();
+      for (var c = child; c != null; c = childAfter(c)) {
+        if (c.hasSize) _extentManager.setExtent(_indexOf(c), paintExtentOf(c));
+      }
+      if (child != null && oldOffset != null) {
+        final delta =
+            _extentManager.offsetForIndex(_indexOf(child)) - oldOffset;
+        _shiftLayoutOffsets(child, delta);
+        if (constraints.scrollOffset > 0 &&
+            _pendingTarget == null &&
+            _header == null &&
+            delta.abs() > precisionErrorTolerance) {
+          geometry = SliverGeometry(scrollOffsetCorrection: delta);
+          childManager.didFinishLayout();
+          return;
+        }
+      }
+    }
 
     // This is also the last extent that this sliver list reported.
     final initialExtent = _totalExtent();

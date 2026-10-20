@@ -74,6 +74,10 @@ class SuperSliverMultiBoxAdaptorElement extends SliverMultiBoxAdaptorElement
       : null;
 
   @override
+  int? indexForScrollOffset(double pixels) =>
+      _hasRenderObject ? renderObject.indexForScrollOffset(pixels) : null;
+
+  @override
   ListAnchor? get currentAnchor =>
       _hasRenderObject ? renderObject.currentAnchor : null;
 

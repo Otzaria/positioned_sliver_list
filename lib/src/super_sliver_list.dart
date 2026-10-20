@@ -305,6 +305,17 @@ class ListController extends ChangeNotifier {
   List<ItemPosition>? computeItemPositions() =>
       _delegate?.delegate.computeItemPositions();
 
+  /// Maps viewport scroll pixels to an item; null outside this list's content.
+  int? indexForScrollOffset(double pixels) =>
+      _delegate?.delegate.indexForScrollOffset(pixels);
+
+  /// Applies estimates atomically, preserves the visible anchor, then completes.
+  /// Throws [StateError] during layout; listeners are notified once per batch.
+  Future<void> updateEstimatedExtents(Map<int, double> extents) {
+    assert(_delegate != null, "ListController is not attached.");
+    return _delegate?.updateEstimatedExtents(extents) ?? Future<void>.value();
+  }
+
   /// The first visible item and how far the viewport's leading edge is inside
   /// it. Pass `-anchor.offsetInItem` as the offset of [jumpToIndex] to restore
   /// it.
@@ -848,6 +859,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.extentPrecalculationPolicy,
     this.listController,
     this.extentEstimation,
+    this.estimationKey,
     this.delayPopulatingCacheArea = true,
     this.layoutKeptAliveChildren = false,
     this.initialScrollPosition = InitialScrollPosition.start,
@@ -868,6 +880,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.extentPrecalculationPolicy,
     this.listController,
     this.extentEstimation,
+    this.estimationKey,
     this.delayPopulatingCacheArea = true,
     this.layoutKeptAliveChildren = false,
     this.initialScrollPosition = InitialScrollPosition.start,
@@ -901,6 +914,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.extentPrecalculationPolicy,
     this.listController,
     this.extentEstimation,
+    this.estimationKey,
     this.delayPopulatingCacheArea = true,
     this.layoutKeptAliveChildren = false,
     this.initialScrollPosition = InitialScrollPosition.start,
@@ -952,6 +966,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.extentPrecalculationPolicy,
     this.listController,
     this.extentEstimation,
+    this.estimationKey,
     this.delayPopulatingCacheArea = true,
     this.layoutKeptAliveChildren = false,
     this.initialScrollPosition = InitialScrollPosition.start,
@@ -986,6 +1001,10 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
   /// calls to extent estimation provider for large lists.
   /// If each item has different extent, return zero for the `null` index.
   final ExtentEstimationProvider? extentEstimation;
+
+  /// Changes when the meaning of [extentEstimation] changes.
+  /// Callback identity alone never invalidates cached estimates.
+  final Object? estimationKey;
 
   /// Optional policy that can be used to asynchronously precalculate the extents
   /// of the items in the list. This can be useful allow precise scrolling on small
@@ -1048,6 +1067,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
       childManager: element,
       extentPrecalculationPolicy: extentPrecalculationPolicy,
       estimateExtent: extentEstimation ?? _defaultEstimateExtent,
+      estimationKey: estimationKey,
       delayPopulatingCacheArea: delayPopulatingCacheArea,
       layoutKeptAliveChildren: layoutKeptAliveChildren,
       initialScrollPosition: initialScrollPosition,
@@ -1068,6 +1088,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     renderSliverList.extentPrecalculationPolicy = extentPrecalculationPolicy;
     renderSliverList.estimateExtent =
         extentEstimation ?? _defaultEstimateExtent;
+    renderSliverList.estimationKey = estimationKey;
     renderSliverList.delayPopulatingCacheArea = delayPopulatingCacheArea;
     renderSliverList.layoutKeptAliveChildren = layoutKeptAliveChildren;
     renderSliverList.initialScrollPosition = initialScrollPosition;

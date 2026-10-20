@@ -36,6 +36,7 @@ class SuperListView extends BoxScrollView {
     super.clipBehavior,
     this.listController,
     this.extentEstimation,
+    this.estimationKey,
     this.extentPrecalculationPolicy,
     this.delayPopulatingCacheArea = false,
     this.initialScrollPosition = InitialScrollPosition.start,
@@ -77,6 +78,7 @@ class SuperListView extends BoxScrollView {
     super.clipBehavior,
     this.listController,
     this.extentEstimation,
+    this.estimationKey,
     this.extentPrecalculationPolicy,
     this.delayPopulatingCacheArea = false,
     this.initialScrollPosition = InitialScrollPosition.start,
@@ -122,6 +124,7 @@ class SuperListView extends BoxScrollView {
     super.clipBehavior,
     this.listController,
     this.extentEstimation,
+    this.estimationKey,
     this.extentPrecalculationPolicy,
     this.delayPopulatingCacheArea = false,
     this.initialScrollPosition = InitialScrollPosition.start,
@@ -170,6 +173,7 @@ class SuperListView extends BoxScrollView {
     super.clipBehavior,
     this.listController,
     this.extentEstimation,
+    this.estimationKey,
     this.extentPrecalculationPolicy,
     this.delayPopulatingCacheArea = false,
     this.initialScrollPosition = InitialScrollPosition.start,
@@ -197,6 +201,10 @@ class SuperListView extends BoxScrollView {
   /// extents are calculated and the scroll offset is adjusted to account for
   /// the difference between estimated and actual extents.
   final ExtentEstimationProvider? extentEstimation;
+
+  /// Changes when the meaning of [extentEstimation] changes.
+  /// Callback identity alone never invalidates cached estimates.
+  final Object? estimationKey;
 
   /// Optional policy that can be used to asynchronously precalculate the extents
   /// of the items in the list. This can be useful allow precise scrolling on small
@@ -239,6 +247,7 @@ class SuperListView extends BoxScrollView {
       listController: listController,
       delayPopulatingCacheArea: delayPopulatingCacheArea,
       extentEstimation: extentEstimation,
+      estimationKey: estimationKey,
       extentPrecalculationPolicy: extentPrecalculationPolicy,
       initialScrollPosition: initialScrollPosition,
       initialIndex: initialIndex,

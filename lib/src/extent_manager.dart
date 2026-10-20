@@ -1,5 +1,8 @@
+import "dart:async";
+
 import "package:flutter/foundation.dart";
 import "package:flutter/rendering.dart";
+import "package:flutter/scheduler.dart";
 import "package:flutter/widgets.dart" show ScrollPosition;
 import "extent_list.dart";
 import "header_anchor.dart";
@@ -14,6 +17,7 @@ abstract class ExtentManagerDelegate {
   Future<void> jumpToIndex(int index, double alignment, double offset) =>
       Future<void>.value();
   double? pixelsForIndex(int index, double alignment, double offset) => null;
+  int? indexForScrollOffset(double pixels) => null;
   ListAnchor? get currentAnchor => null;
   List<ItemPosition>? computeItemPositions() => null;
   void requestItemPositions() {}
@@ -80,6 +84,14 @@ class ExtentManager with ChangeNotifier {
 
   @override
   void dispose() {
+    for (final completer in [
+      ..._pendingEstimateCompleters,
+      ..._appliedEstimateCompleters,
+    ]) {
+      completer.complete();
+    }
+    _pendingEstimateCompleters.clear();
+    _appliedEstimateCompleters.clear();
     _extentsChangedNotifier.dispose();
     super.dispose();
   }
@@ -161,12 +173,106 @@ class ExtentManager with ChangeNotifier {
   int extentRevision = 0;
 
   void markAllDirty() {
+    _refreshAllEstimates = true;
+  }
+
+  bool _refreshAllEstimates = false;
+  final _invalidatedEstimates = <int>{};
+  final _pendingEstimates = <int, double>{};
+  final _pendingEstimateCompleters = <Completer<void>>[];
+  final _appliedEstimateCompleters = <Completer<void>>[];
+  bool _estimateCompletionScheduled = false;
+  bool _batchedListChanged = false;
+  bool _batchedExtentsChanged = false;
+
+  bool get hasPendingEstimateUpdates =>
+      _refreshAllEstimates ||
+      _invalidatedEstimates.isNotEmpty ||
+      _pendingEstimates.isNotEmpty;
+
+  void _checkUnlocked() {
+    if (isLocked) {
+      throw StateError("Item extents cannot be changed during layout.");
+    }
+  }
+
+  Future<void> updateEstimatedExtents(Map<int, double> extents) {
+    _checkUnlocked();
+    for (final entry in extents.entries) {
+      RangeError.checkValidIndex(
+        entry.key,
+        _extentList,
+        "index",
+        numberOfItems,
+      );
+      if (!entry.value.isFinite || entry.value < 0) {
+        throw ArgumentError.value(
+          entry.value,
+          "extent",
+          "Must be finite and nonnegative.",
+        );
+      }
+    }
+    if (extents.isEmpty) return Future<void>.value();
+    _pendingEstimates.addAll(extents);
+    _invalidatedEstimates.removeAll(extents.keys);
+    final completer = Completer<void>();
+    _pendingEstimateCompleters.add(completer);
+    delegate.onMarkNeedsLayout();
+    return completer.future;
+  }
+
+  void applyPendingEstimateUpdates() {
+    assert(isLocked);
+    if (_refreshAllEstimates) {
+      _extentList.refreshEstimates(delegate.estimateExtentForItem);
+      _refreshAllEstimates = false;
+    }
+    for (final index in _invalidatedEstimates) {
+      if (index < numberOfItems) {
+        _extentList.setExtent(
+          index,
+          delegate.estimateExtentForItem(index),
+          isEstimation: true,
+        );
+        _extentList.markDirty(index);
+      }
+    }
+    for (final entry in _pendingEstimates.entries) {
+      if (entry.key < numberOfItems) {
+        _extentList.setExtent(entry.key, entry.value, isEstimation: true);
+        _extentList.markDirty(entry.key);
+      }
+    }
+    _invalidatedEstimates.clear();
+    _pendingEstimates.clear();
+    _appliedEstimateCompleters.addAll(_pendingEstimateCompleters);
+    _pendingEstimateCompleters.clear();
     ++extentRevision;
-    _afterCorrection = 0.0;
-    _beforeCorrection = 0.0;
     _isModified = true;
     _extentsModified = true;
-    _extentList.markAllDirty();
+  }
+
+  void completeEstimateUpdates() {
+    if (_appliedEstimateCompleters.isEmpty || _estimateCompletionScheduled) {
+      return;
+    }
+    _estimateCompletionScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _estimateCompletionScheduled = false;
+      final completers = List<Completer<void>>.of(_appliedEstimateCompleters);
+      _appliedEstimateCompleters.clear();
+      if (completers.isEmpty) return;
+      final listChanged = _batchedListChanged;
+      final extentsChanged = _batchedExtentsChanged;
+      _batchedListChanged = false;
+      _batchedExtentsChanged = false;
+      if (listChanged) notifyListeners();
+      if (extentsChanged) _extentsChangedNotifier.notify();
+      for (final completer in completers) {
+        completer.complete();
+      }
+    });
   }
 
   bool get hasDirtyItems => _extentList.hasDirtyItems;
@@ -233,11 +339,13 @@ class ExtentManager with ChangeNotifier {
         reportUnobstructedVisibleChildrenRange(null, null);
       }
       _layoutInProgress = false;
-      if (_isModified) {
-        notifyListeners();
-      }
-      if (_extentsModified) {
-        _extentsChangedNotifier.notify();
+      if (_pendingEstimateCompleters.isNotEmpty ||
+          _appliedEstimateCompleters.isNotEmpty) {
+        _batchedListChanged |= _isModified;
+        _batchedExtentsChanged |= _extentsModified;
+      } else {
+        if (_isModified) notifyListeners();
+        if (_extentsModified) _extentsChangedNotifier.notify();
       }
     }
   }
@@ -316,12 +424,16 @@ class ExtentManager with ChangeNotifier {
   }
 
   void invalidateExtent(int index) {
-    _extentList.markDirty(index);
+    _checkUnlocked();
+    RangeError.checkValidIndex(index, _extentList, "index", numberOfItems);
+    _invalidatedEstimates.add(index);
+    _pendingEstimates.remove(index);
     delegate.onMarkNeedsLayout();
   }
 
   void invalidateAllExtents() {
-    _extentList.markAllDirty();
+    _checkUnlocked();
+    markAllDirty();
     delegate.onMarkNeedsLayout();
   }
 
