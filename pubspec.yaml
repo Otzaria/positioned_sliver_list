@@ -1,6 +1,6 @@
 name: positioned_sliver_list
-description: "Sliver list for very large lists with variable item extents: precise jump/animate to index, item position reporting, scroll anchoring, a real ScrollController, and a scrollable_positioned_list compatible API."
-version: 0.1.0
+description: "A virtualized sliver list with variable heights, exact index navigation, scroll anchoring, pixel scrolling and a scrollable_positioned_list compatible API."
+version: 0.2.0
 homepage: https://github.com/Otzaria/positioned_sliver_list
 repository: https://github.com/Otzaria/positioned_sliver_list
 issue_tracker: https://github.com/Otzaria/positioned_sliver_list/issues

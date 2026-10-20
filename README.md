@@ -126,6 +126,7 @@ await handle;
 ```
 
 `SuperSliverList(initialIndex: ..., initialAlignment: ..., initialOffset: ...)` applies such a position during the first layout.
+`initialTargetRectResolver` can resolve a point inside that initial item before the first paint, for example when restoring a reading position inside a long paragraph.
 
 By default a target is clamped to the scroll range: the last item cannot be moved to the top of the viewport. `SuperSliverList(overscrollToTarget: ...)` changes that:
 
@@ -172,11 +173,20 @@ Scrollbar(
 
 itemScrollController.jumpTo(index: 500, alignment: 0.1);
 await itemScrollController.scrollTo(index: 9000, duration: const Duration(milliseconds: 500));
+
+// Wait for an exact jump to be laid out before reading item geometry.
+await itemScrollController.jumpToAsync(index: 500, alignment: 0.1);
+
+// Preserve an offset inside an item, including visible leading padding.
+final saved = itemScrollController.anchor;
+if (saved != null) await itemScrollController.restoreAnchorAsync(saved);
 ```
 
 Provide `estimateExtent` when you can: items that were never laid out are estimated at 100 pixels otherwise, which makes the scrollbar less steady (jumps are exact either way).
 
-Additions to the original API: `scrollController`, `estimateExtent`, `estimatedSeparatorExtent`, `initialOffset`, `restorePosition`, `overscrollToTarget`, an `offset` for `jumpTo`/`scrollTo`, `ItemScrollController.scrollController`/`listController`/`anchor`, and `ScrollOffsetController.jumpBy`/`isAttached`.
+Additions to the original API include `scrollController`, `estimateExtent`, `estimatedSeparatorExtent`, `initialOffset`, `restorePosition`, `overscrollToTarget`, an `offset` for `jumpTo`/`scrollTo`, `ItemScrollController.scrollController`/`listController`/`anchor`, `jumpToAsync`, `restoreAnchor`/`restoreAnchorAsync`, and `ScrollOffsetController.jumpBy`/`isAttached`.
+
+Use `restoreAnchor` rather than translating the anchor into `jumpTo` arguments: for item zero, ordinary `jumpTo(index: 0)` deliberately keeps the leading padding visible, while restoring an anchor preserves exactly how much of that padding had been scrolled away. `restorePosition: true` uses a separate `PageStorage` namespace, so it can coexist with an external `ScrollController` that keeps its pixel offset.
 
 Behavior that differs from `scrollable_positioned_list`:
 
@@ -225,6 +235,42 @@ return SuperSliverList(
 ```
 
 The threshold is arbitrary, but in general there are diminishing returns for precalculating extents for large lists, as the extent estimation error for each item has much smaller impact on the scrollbar position if there are many items.
+
+### Refresh estimates when data or layout changes
+
+The cross-axis width is tracked automatically. For another global change to the estimation model, such as font size or line spacing, pass an `estimationKey` that changes with that model. A newly allocated callback alone does not trigger a full refresh. This keeps ordinary widget rebuilds from rescanning a large list.
+
+When only a few items change, update their estimates together:
+
+```dart
+await listController.updateEstimatedExtents({12: 160, 13: 240, 8000: 95});
+```
+
+The update is applied during layout, keeps the visible anchor in place, and completes after the resulting layout. Measured visible items use their actual extents. Invalid indices or non-finite/negative extents are rejected before any update is queued; writes during layout are rejected. Use `ItemScrollController.updateEstimatedExtents` for a compatibility list so separated-list indices remain logical item indices.
+
+`invalidateExtent` and `invalidateAllExtents` recalculate numerical estimates as well as marking measurements dirty. A full refresh is linear in the number of items; prefer a batch for local data changes.
+
+### Navigate inside an item
+
+Both index navigation methods accept `targetRectResolver`. It runs after the target item has been laid out, before paint, so it can inspect the actual item and its descendants. A zero-height rectangle identifies an exact point within a vertical item:
+
+```dart
+await listController.jumpToIndex(
+  500,
+  alignment: 0.35,
+  targetRectResolver: (index, item) => Rect.fromLTWH(
+    0, item.size.height * 0.75, item.size.width, 0,
+  ),
+);
+```
+
+The resolver must only read geometry; it must not mutate the widget tree or item extents. In the compatibility API, supplying a resolver disables the automatic leading-padding adjustment for item zero, including when the resolver returns null. `alignment` and `offset` then use the native viewport coordinates.
+
+### Use pixel scroll metrics
+
+A `Scrollbar` can use the list's `ScrollController` directly. Its thumb reflects the estimated scrollable content length, including measured item heights, rather than the number of items. `indexForScrollOffset(pixels)` maps those same viewport scroll pixels to an estimated item index for a position label; it returns null in padding or reserved blank space outside the list's content.
+
+Keep stable child keys and supply `findChildIndexCallback` when items can move. This allows the existing child state and its extent to follow the item through a reorder. A compatibility list can also take an external `ListController` when a parent needs to own a layout constraint before the list attaches.
 
 ## Example
 

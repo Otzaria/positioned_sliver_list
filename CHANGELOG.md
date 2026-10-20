@@ -1,3 +1,30 @@
+## 0.2.0
+
+* Refresh numerical extent estimates on width changes, explicit invalidation and
+  `estimationKey` changes. Rebuilding an estimator callback alone does not cause
+  a full scan.
+* Add `ListController.updateEstimatedExtents` for atomic local updates that keep
+  the visible anchor, notify once and complete after layout. The compatibility
+  controller translates logical indices for separated lists.
+* Distant jumps start with the target item even when its estimated offset is
+  near the beginning of the list, avoiding thousands of unnecessary builds.
+* Release unused Fenwick-tree capacity after a substantial list shrink, while
+  keeping headroom for small shrink/grow cycles.
+* Add `targetRectResolver` to index jumps and animations, and
+  `initialTargetRectResolver` for the first layout. Resolve the target after
+  measuring its item, before paint, including horizontal, reversed and RTL lists.
+* Add `indexForScrollOffset` to map viewport scroll pixels to estimated item
+  indices, accounting for preceding slivers, padding and reserved blank space.
+* Extend header anchoring to shrink-wrapped lists.
+* Compatibility API: add `jumpToAsync`, `restoreAnchor`/`restoreAnchorAsync`,
+  external `ListController` ownership and `findChildIndexCallback` forwarding.
+  Keep state and measured extents with stable keyed items through a reorder.
+* Isolate compatibility anchors from `ScrollController`'s `PageStorage` slot,
+  preserve the complete storage-key ancestry, and restore leading padding
+  without applying it twice.
+* Add regressions for lifecycle cancellation, controller replacement, batched
+  updates, restoration, first-frame targets, directions and bounded builds.
+
 ## 0.1.0
 
 First release as `positioned_sliver_list`, a fork of `super_sliver_list` 0.4.1.
