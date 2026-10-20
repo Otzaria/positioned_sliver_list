@@ -72,10 +72,10 @@ void main() {
     (tester) async {
       await tester.pumpWidget(h.build());
       await h.place(tester);
-    final callsBeforeResize = h.estimateCalls;
+      final callsBeforeResize = h.estimateCalls;
       await tester.pumpWidget(h.build(width: 200, height: 200));
       await tester.pump();
-    expect(h.estimateCalls - callsBeforeResize, 10001);
+      expect(h.estimateCalls - callsBeforeResize, 10001);
       expect(h.list.extentForIndex(8000), (200.0, true));
       expect(h.list.anchor!.index, 1000);
       expect(h.list.anchor!.offsetInItem, closeTo(75, 0.01));
