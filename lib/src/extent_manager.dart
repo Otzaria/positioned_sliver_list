@@ -15,7 +15,7 @@ abstract class ExtentManagerDelegate {
       Future<void>.value();
   double? pixelsForIndex(int index, double alignment, double offset) => null;
   ListAnchor? get currentAnchor => null;
-  List<ItemPosition>? computeItemPositions() => const [];
+  List<ItemPosition>? computeItemPositions() => null;
   void requestItemPositions() {}
   bool get hasPendingTarget => false;
   ScrollPosition? get scrollPosition => null;

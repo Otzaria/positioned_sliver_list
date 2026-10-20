@@ -1308,12 +1308,13 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
   }
 
   /// Positions of the items that are at least partially visible, in index
-  /// order, or null when the viewport scrolled after the last layout or a
-  /// jump is pending. Cost is proportional to the number of laid out children.
+  /// order, or null when the list is not laid out in a viewport, the viewport
+  /// scrolled after the last layout or a jump is pending. Cost is proportional
+  /// to the number of laid out children.
   List<ItemPosition>? computeItemPositions() {
     final viewport = getViewport();
     if (!attached || viewport == null || !viewport.hasSize) {
-      return const [];
+      return null;
     }
     // Before a pending jump lands, the laid out positions are the ones it
     // replaces; the layout that resolves it publishes.
