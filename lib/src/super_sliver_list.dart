@@ -299,8 +299,9 @@ class ListController extends ChangeNotifier {
   ValueListenable<List<ItemPosition>> get itemPositions => _itemPositions;
 
   /// Positions of the visible items as currently laid out, without waiting
-  /// for [itemPositions]. Null when no list is attached or when the viewport
-  /// scrolled after the last layout; the next layout then publishes them.
+  /// for [itemPositions]. Null when no list is attached, when the viewport
+  /// scrolled after the last layout or while a jump is pending; the next
+  /// layout then publishes them.
   List<ItemPosition>? computeItemPositions() =>
       _delegate?.delegate.computeItemPositions();
 

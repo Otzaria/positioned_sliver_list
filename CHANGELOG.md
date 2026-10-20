@@ -19,7 +19,7 @@ First release as `positioned_sliver_list`, a fork of `super_sliver_list` 0.4.1.
   the viewport. That space shrinks as the user scrolls back and is used up by
   appended items; `ListController.overscrollSpace` reports it.
 * `ListController.itemPositions` publishes the visible items after layout,
-  never from a layout older than the scroll offset;
+  never from a layout older than the scroll offset or the pending jump;
   `ListController.computeItemPositions` reads them on demand, and
   `ListController.anchor` reports the item at the viewport's leading edge.
 * The item at the viewport's leading edge keeps its position when items above it

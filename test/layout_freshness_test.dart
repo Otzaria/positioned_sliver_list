@@ -221,5 +221,69 @@ void main() {
       expect(published, [5], reason: "$published");
       expect(listController.computeItemPositions()!.first.index, 5);
     });
+
+    testWidgets("a jump after a rebuild publishes only its own positions", (
+      tester,
+    ) async {
+      final controller = ItemScrollController();
+      final listener = ItemPositionsListener.create();
+      var extent = _itemExtent;
+      late StateSetter setState;
+      await tester.pumpWidget(
+        _host(
+          StatefulBuilder(
+            builder: (context, set) {
+              setState = set;
+              return ScrollablePositionedList.builder(
+                itemScrollController: controller,
+                itemPositionsListener: listener,
+                itemCount: 100,
+                itemBuilder: (_, index) =>
+                    SizedBox(height: extent, child: Text("$index")),
+              );
+            },
+          ),
+        ),
+      );
+      controller.jumpTo(index: 30);
+      await tester.pumpAndSettle();
+      final published = <int>[];
+      listener.itemPositions.addListener(
+        () => published.add(listener.itemPositions.value.first.index),
+      );
+      // New extents and a reset jump requested after the frame that lays
+      // them out, as a list does when its content is replaced.
+      setState(() => extent = 44);
+      tester.binding.addPostFrameCallback((_) => controller.jumpTo(index: 0));
+      await tester.pump();
+      await tester.pump();
+      expect(published, isNotEmpty);
+      expect(published, everyElement(0), reason: "$published");
+    });
+
+    testWidgets("ListController positions are null while a jump is pending", (
+      tester,
+    ) async {
+      final scrollController = ScrollController();
+      final listController = ListController();
+      addTearDown(scrollController.dispose);
+      addTearDown(listController.dispose);
+      await tester.pumpWidget(_listView(0, scrollController, listController));
+      final published = <int>[];
+      listController.itemPositions.addListener(
+        () => published.add(listController.itemPositions.value.first.index),
+      );
+      await tester.pump();
+      published.clear();
+      scrollController.jumpTo(400);
+      tester.binding.addPostFrameCallback((_) {
+        listController.jumpToIndex(50);
+        expect(listController.computeItemPositions(), isNull);
+      });
+      await tester.pump();
+      await tester.pump();
+      expect(published, [50], reason: "$published");
+      expect(listController.computeItemPositions()!.first.index, 50);
+    });
   });
 }
