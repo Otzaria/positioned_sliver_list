@@ -39,6 +39,7 @@ class ScrollablePositionedList extends StatefulWidget {
     super.key,
     required this.itemCount,
     required this.itemBuilder,
+    this.findChildIndexCallback,
     this.itemScrollController,
     this.shrinkWrap = false,
     this.itemPositionsListener,
@@ -59,7 +60,9 @@ class ScrollablePositionedList extends StatefulWidget {
     this.cacheExtentScreens = _defaultCacheExtentScreens,
     this.jumpToDistantItems = false,
     this.scrollController,
+    this.listController,
     this.estimateExtent,
+    this.estimationKey,
     this.restorePosition = false,
     this.overscrollToTarget = OverscrollToTarget.matchScrollablePositionedList,
   }) : assert(cacheExtentScreens >= 0),
@@ -71,6 +74,7 @@ class ScrollablePositionedList extends StatefulWidget {
     super.key,
     required this.itemCount,
     required this.itemBuilder,
+    this.findChildIndexCallback,
     this.itemScrollController,
     this.shrinkWrap = false,
     this.itemPositionsListener,
@@ -91,7 +95,9 @@ class ScrollablePositionedList extends StatefulWidget {
     this.cacheExtentScreens = _defaultCacheExtentScreens,
     this.jumpToDistantItems = false,
     this.scrollController,
+    this.listController,
     this.estimateExtent,
+    this.estimationKey,
     this.restorePosition = false,
     this.overscrollToTarget = OverscrollToTarget.matchScrollablePositionedList,
   }) : assert(cacheExtentScreens >= 0),
@@ -104,6 +110,7 @@ class ScrollablePositionedList extends StatefulWidget {
     super.key,
     required this.itemCount,
     required this.itemBuilder,
+    this.findChildIndexCallback,
     required IndexedWidgetBuilder this.separatorBuilder,
     this.itemScrollController,
     this.shrinkWrap = false,
@@ -125,7 +132,9 @@ class ScrollablePositionedList extends StatefulWidget {
     this.cacheExtentScreens = _defaultCacheExtentScreens,
     this.jumpToDistantItems = false,
     this.scrollController,
+    this.listController,
     this.estimateExtent,
+    this.estimationKey,
     this.estimatedSeparatorExtent = 0,
     this.restorePosition = false,
     this.overscrollToTarget = OverscrollToTarget.matchScrollablePositionedList,
@@ -136,6 +145,10 @@ class ScrollablePositionedList extends StatefulWidget {
 
   /// Builds the item at `0 <= index < itemCount`.
   final IndexedWidgetBuilder itemBuilder;
+
+  /// מאתר את האינדקס החדש של פריט לפי מפתחו ושומר את מצבו בסידור מחדש.
+  /// גם ברשימה מופרדת מחזירים אינדקס פריט, ללא המפרידים שביניהם.
+  final ChildIndexGetter? findChildIndexCallback;
 
   /// Builds the separator after the item at `0 <= index < itemCount - 1`.
   final IndexedWidgetBuilder? separatorBuilder;
@@ -206,9 +219,18 @@ class ScrollablePositionedList extends StatefulWidget {
   /// Pass one to drive a [Scrollbar] or to listen to scroll metrics.
   final ScrollController? scrollController;
 
+  /// בקר ליבת הרשימה; בקרה על מחזור חייו נשארת בידי מי שסיפק אותו.
+  /// בלעדיו הרשימה יוצרת בקר פנימי ומשחררת אותו בפירוקה.
+  final ListController? listController;
+
   /// Estimates item extents before they are laid out. Good estimates make the
   /// scrollbar steadier; jumps are exact either way.
+  /// החלפת ה-callback אינה מרעננת הערכות: לשינוי הנתונים עדכנו [estimationKey].
   final ItemExtentEstimator? estimateExtent;
+
+  /// שינוי המפתח מרענן הערכות שטרם נמדדו, בלי לאבד מדידות קיימות.
+  /// רוחב חדש ורענון מפורש של [ListController] מרעננים אותן גם בלעדיו.
+  final Object? estimationKey;
 
   /// Estimated extent of a separator in a [ScrollablePositionedList.separated]
   /// list.
@@ -253,6 +275,26 @@ class ItemScrollController {
   /// list.
   ListController? get listController => _client?._listController;
 
+  /// מחזיר אינדקס פריט לפי היסט הפיקסלים של הרשימה, או null מחוץ לתוכן.
+  /// היסט שבתוך מפריד ממופה לפריט שלפניו.
+  int? indexForScrollOffset(double pixels) {
+    final client = _client;
+    if (client == null || !client._listController.isAttached) return null;
+    final index = client._listController.indexForScrollOffset(pixels);
+    return index == null ? null : client._itemIndex(index);
+  }
+
+  /// מעדכן הערכות לפי אינדקסי פריטים ומשלים לאחר הפריסה שמיישמת את האצווה.
+  /// ברשימה מופרדת גובהי המפרידים נשארים ללא שינוי.
+  Future<void> updateEstimatedExtents(Map<int, double> extents) {
+    assert(isAttached, "ItemScrollController is not attached.");
+    final client = _client!;
+    return client._listController.updateEstimatedExtents({
+      for (final entry in extents.entries)
+        client._childIndex(entry.key): entry.value,
+    });
+  }
+
   /// הפריט הראשון שנראה והמרחק מקצהו לתחילת התצוגה.
   /// [restoreAnchor] משחזר אותו, כולל ריפוד שנראה לפני הפריט הראשון.
   ListAnchor? get anchor => _client?._anchor;
@@ -265,9 +307,24 @@ class ItemScrollController {
   /// center, 1 the trailing edge. Values outside 0..1 are allowed. The
   /// resulting position is clamped to the scroll range, so the last items
   /// cannot be moved to the top of the viewport.
-  void jumpTo({required int index, double alignment = 0, double offset = 0}) {
+  /// [targetRectResolver] מיישר אזור בתוך הפריט; האינדקס שהוא מקבל הוא
+  /// אינדקס פריט גם ברשימה מופרדת. עצם אספקתו מבטלת הוספת ריפוד לפריט 0,
+  /// גם כשהוא מחזיר null, כך ש-[offset] נשאר היסט מדויק מהתצוגה.
+  void jumpTo({
+    required int index,
+    double alignment = 0,
+    double offset = 0,
+    TargetRectResolver? targetRectResolver,
+  }) {
     assert(isAttached, "ItemScrollController is not attached.");
-    unawaited(jumpToAsync(index: index, alignment: alignment, offset: offset));
+    unawaited(
+      jumpToAsync(
+        index: index,
+        alignment: alignment,
+        offset: offset,
+        targetRectResolver: targetRectResolver,
+      ),
+    );
   }
 
   /// כמו [jumpTo], ומשלים אחרי הפריסה שמיישמת את הקפיצה או ביטולה.
@@ -275,9 +332,15 @@ class ItemScrollController {
     required int index,
     double alignment = 0,
     double offset = 0,
+    TargetRectResolver? targetRectResolver,
   }) {
     assert(isAttached, "ItemScrollController is not attached.");
-    return _client!._jumpTo(index: index, alignment: alignment, offset: offset);
+    return _client!._jumpTo(
+      index: index,
+      alignment: alignment,
+      offset: offset,
+      targetRectResolver: targetRectResolver,
+    );
   }
 
   /// משחזר עוגן בלי להוסיף את הריפוד של [jumpTo] לפריט הראשון.
@@ -311,6 +374,7 @@ class ItemScrollController {
     required Duration duration,
     Curve curve = Curves.linear,
     List<double> opacityAnimationWeights = const [40, 20, 40],
+    TargetRectResolver? targetRectResolver,
   }) {
     assert(isAttached, "ItemScrollController is not attached.");
     return _client!._scrollTo(
@@ -319,6 +383,7 @@ class ItemScrollController {
       offset: offset,
       duration: duration,
       curve: curve,
+      targetRectResolver: targetRectResolver,
     );
   }
 
@@ -412,7 +477,7 @@ class _ScrollOffsetNotifier implements ScrollOffsetListener {
 }
 
 class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
-  final _listController = ListController();
+  ListController? _ownListController;
   ScrollController? _ownScrollController;
   late int _initialIndex;
   late double _initialAlignment;
@@ -424,12 +489,18 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
   TargetScrollAnimation? _offsetAnimation;
   List<ItemPosition> _lastPositions = const [];
 
+  ListController get _listController =>
+      widget.listController ?? (_ownListController ??= ListController());
+
   ScrollController get _scrollController =>
       widget.scrollController ??
       (_ownScrollController ??= ScrollController(keepScrollOffset: false));
 
   int _childIndex(int itemIndex) =>
       widget._separated ? itemIndex * 2 : itemIndex;
+
+  int _itemIndex(int childIndex) =>
+      widget._separated ? childIndex ~/ 2 : childIndex;
 
   int get _childCount => widget._separated
       ? math.max(0, widget.itemCount * 2 - 1)
@@ -518,8 +589,16 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
   @override
   void didUpdateWidget(ScrollablePositionedList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _storageIdentifier = _computeStorageIdentifier();
+    if (oldWidget.listController != widget.listController) {
+      _cancelAnimations();
+      _lastPositions = const [];
+    }
     _syncPositionsListener();
+    if (oldWidget.listController != widget.listController &&
+        widget.listController != null) {
+      _ownListController?.dispose();
+      _ownListController = null;
+    }
     if (oldWidget.itemScrollController != widget.itemScrollController) {
       oldWidget.itemScrollController?._detach(this);
       widget.itemScrollController?._attach(this);
@@ -545,29 +624,25 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
   void dispose() {
     _itemAnimation?.cancel();
     _offsetAnimation?.cancel();
-    if (_listeningToPositions) {
-      _listController.itemPositions.removeListener(_updatePositions);
-    }
+    _positionsController?.itemPositions.removeListener(_updatePositions);
     _ownScrollController?.dispose();
-    _listController.dispose();
+    _ownListController?.dispose();
     super.dispose();
   }
 
-  bool _listeningToPositions = false;
+  ListController? _positionsController;
+
+  bool get _listeningToPositions => _positionsController != null;
 
   // Positions are computed after every layout only while someone needs them.
   void _syncPositionsListener() {
     final needed =
         widget.itemPositionsListener != null || widget.restorePosition;
-    if (needed == _listeningToPositions) {
-      return;
-    }
-    _listeningToPositions = needed;
-    if (needed) {
-      _listController.itemPositions.addListener(_updatePositions);
-    } else {
-      _listController.itemPositions.removeListener(_updatePositions);
-    }
+    final controller = needed ? _listController : null;
+    if (identical(controller, _positionsController)) return;
+    _positionsController?.itemPositions.removeListener(_updatePositions);
+    _positionsController = controller;
+    controller?.itemPositions.addListener(_updatePositions);
   }
 
   /// Runs [start] and counts it as programmatic scrolling until it is done.
@@ -725,6 +800,7 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
     required double alignment,
     required double offset,
     bool includeLeadingPadding = true,
+    TargetRectResolver? targetRectResolver,
   }) {
     final itemIndex = _clampIndex(index);
     if (itemIndex == null || !_listController.isAttached) {
@@ -735,7 +811,10 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
       () => _listController.jumpToIndex(
         _childIndex(itemIndex),
         alignment: alignment,
-        offset: includeLeadingPadding ? _itemOffset(itemIndex, offset) : offset,
+        offset: includeLeadingPadding && targetRectResolver == null
+            ? _itemOffset(itemIndex, offset)
+            : offset,
+        targetRectResolver: _targetRectResolver(targetRectResolver),
       ),
     );
   }
@@ -746,6 +825,7 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
     required double offset,
     required Duration duration,
     required Curve curve,
+    TargetRectResolver? targetRectResolver,
   }) {
     final itemIndex = _clampIndex(index);
     if (itemIndex == null || !_listController.isAttached) {
@@ -756,13 +836,21 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
       final handle = _listController.scrollToIndex(
         _childIndex(itemIndex),
         alignment: alignment,
-        offset: _itemOffset(itemIndex, offset),
+        offset: targetRectResolver == null
+            ? _itemOffset(itemIndex, offset)
+            : offset,
         duration: duration,
         curve: curve,
+        targetRectResolver: _targetRectResolver(targetRectResolver),
       );
       _itemAnimation = handle;
       return handle;
     });
+  }
+
+  TargetRectResolver? _targetRectResolver(TargetRectResolver? resolver) {
+    if (resolver == null || !widget._separated) return resolver;
+    return (index, child) => resolver(_itemIndex(index), child);
   }
 
   Future<void> _animateScroll(double offset, Duration duration, Curve curve) {
@@ -802,7 +890,7 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
     }
   }
 
-  double? _estimate(int? childIndex, double crossAxisExtent) {
+  double _estimate(int? childIndex, double crossAxisExtent) {
     final estimate = widget.estimateExtent;
     if (childIndex == null) {
       // A uniform estimate lets the list skip per-item calls.
@@ -816,6 +904,11 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
     final itemIndex = widget._separated ? childIndex ~/ 2 : childIndex;
     return estimate?.call(itemIndex, crossAxisExtent) ??
         _defaultItemExtentEstimate;
+  }
+
+  int? _findChildIndex(Key key) {
+    final itemIndex = widget.findChildIndexCallback!(key);
+    return itemIndex == null ? null : _childIndex(itemIndex);
   }
 
   Widget? _buildChild(BuildContext context, int childIndex) {
@@ -846,6 +939,9 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
       delegate: SliverChildBuilderDelegate(
         _buildChild,
         childCount: _childCount,
+        findChildIndexCallback: widget.findChildIndexCallback == null
+            ? null
+            : _findChildIndex,
         addAutomaticKeepAlives: widget.addAutomaticKeepAlives,
         addRepaintBoundaries: widget.addRepaintBoundaries,
         addSemanticIndexes: widget.addSemanticIndexes,
@@ -854,8 +950,13 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
             : (_, index) => index,
       ),
       listController: _listController,
-      extentEstimation: (index, crossAxisExtent) =>
-          _estimate(index, crossAxisExtent)!,
+      extentEstimation: _estimate,
+      estimationKey: (
+        widget.estimationKey,
+        widget._separated,
+        widget.estimatedSeparatorExtent,
+        widget.estimateExtent == null,
+      ),
       initialIndex: _childIndex(_initialIndex),
       initialAlignment: _initialAlignment,
       initialOffset: _restoredPosition == null
