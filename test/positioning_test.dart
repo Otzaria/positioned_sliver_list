@@ -587,27 +587,33 @@ void main() {
       addTearDown(controller.dispose);
       Widget item(BuildContext context, int index) =>
           SizedBox(height: 40, child: Text("Item $index"));
+      // A fresh tree per run: a reused SelectableRegion would carry the
+      // previous run's selection and tap count into this one.
+      await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpWidget(
         MaterialApp(
-          home: SelectionArea(
-            onSelectionChanged: (content) => selected = content?.plainText,
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: SizedBox(
-                width: _width,
-                height: _viewportHeight,
-                child: CustomScrollView(
-                  controller: controller,
-                  slivers: [
-                    if (superList)
-                      SuperSliverList.builder(
-                        itemCount: 5000,
-                        extentEstimation: (_, _) => 40,
-                        itemBuilder: item,
-                      )
-                    else
-                      SliverList.builder(itemCount: 5000, itemBuilder: item),
-                  ],
+          // Material's 14px style keeps each label on one line inside its item.
+          home: Material(
+            child: SelectionArea(
+              onSelectionChanged: (content) => selected = content?.plainText,
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: _width,
+                  height: _viewportHeight,
+                  child: CustomScrollView(
+                    controller: controller,
+                    slivers: [
+                      if (superList)
+                        SuperSliverList.builder(
+                          itemCount: 5000,
+                          extentEstimation: (_, _) => 40,
+                          itemBuilder: item,
+                        )
+                      else
+                        SliverList.builder(itemCount: 5000, itemBuilder: item),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -635,10 +641,15 @@ void main() {
     for (final up in [false, true]) {
       testWidgets("across items dragging ${up ? "up" : "down"} matches "
           "SliverList", (tester) async {
-        final expected = await select(tester, up: up, superList: false);
-        final actual = await select(tester, up: up, superList: true);
-        expect(expected, isNotNull);
-        expect(actual, expected);
+        final reference = await select(tester, up: up, superList: false);
+        expect(await select(tester, up: up, superList: true), reference);
+        // Before 3.47 a backward drag keeps only the item under the pointer,
+        // in any list (flutter/flutter#166462, fixed by #184423).
+        if (up && reference == "em 1002") {
+          markTestSkipped("Flutter's backward selection bug, fixed in 3.47");
+          return;
+        }
+        expect(reference, "em 1002Item 1003Item 1004Item 1005It");
       });
     }
   });
