@@ -48,6 +48,7 @@ class ScrollablePositionedList extends StatefulWidget {
     this.initialScrollIndex = 0,
     this.initialAlignment = 0,
     this.initialOffset = 0,
+    this.initialTargetRectResolver,
     this.scrollDirection = Axis.vertical,
     this.reverse = false,
     this.physics,
@@ -83,6 +84,7 @@ class ScrollablePositionedList extends StatefulWidget {
     this.initialScrollIndex = 0,
     this.initialAlignment = 0,
     this.initialOffset = 0,
+    this.initialTargetRectResolver,
     this.scrollDirection = Axis.vertical,
     this.reverse = false,
     this.physics,
@@ -120,6 +122,7 @@ class ScrollablePositionedList extends StatefulWidget {
     this.initialScrollIndex = 0,
     this.initialAlignment = 0,
     this.initialOffset = 0,
+    this.initialTargetRectResolver,
     this.scrollDirection = Axis.vertical,
     this.reverse = false,
     this.physics,
@@ -175,6 +178,10 @@ class ScrollablePositionedList extends StatefulWidget {
 
   /// Pixels added to [initialAlignment].
   final double initialOffset;
+
+  /// מיישר אזור בתוך הפריט לפני הציור הראשון, לפי חוזה [ItemScrollController.jumpTo].
+  /// שחזור מ־PageStorage מקבל קדימות על פני היעד ההתחלתי הזה.
+  final TargetRectResolver? initialTargetRectResolver;
 
   /// See [ScrollView.scrollDirection].
   final Axis scrollDirection;
@@ -935,6 +942,9 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
 
   Widget _buildScrollView(ScrollCacheExtent cacheExtent) {
     final separated = widget._separated;
+    final initialResolver = _restoredPosition == null
+        ? _targetRectResolver(widget.initialTargetRectResolver)
+        : null;
     final list = SuperSliverList(
       delegate: SliverChildBuilderDelegate(
         _buildChild,
@@ -959,9 +969,10 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
       ),
       initialIndex: _childIndex(_initialIndex),
       initialAlignment: _initialAlignment,
-      initialOffset: _restoredPosition == null
+      initialOffset: _restoredPosition == null && initialResolver == null
           ? _itemOffset(_initialIndex, _initialOffset)
           : _initialOffset,
+      initialTargetRectResolver: initialResolver,
       overscrollToTarget: widget.overscrollToTarget,
     );
     return Listener(

@@ -3,6 +3,95 @@ import "package:flutter_test/flutter_test.dart";
 import "package:positioned_sliver_list/positioned_list.dart";
 
 void main() {
+  testWidgets(
+    "the initial resolver aligns a logical separated item before paint",
+    (tester) async {
+      final resolved = <int>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ScrollablePositionedList.separated(
+            itemCount: 100,
+            initialScrollIndex: 40,
+            initialAlignment: 0.5,
+            initialOffset: 13,
+            initialTargetRectResolver: (index, child) {
+              resolved.add(index);
+              return Rect.fromLTWH(0, 80, child.size.width, 40);
+            },
+            estimatedSeparatorExtent: 7,
+            estimateExtent: (_, width) => 300,
+            itemBuilder: (_, index) =>
+                SizedBox(key: ValueKey(index), height: 300),
+            separatorBuilder: (_, index) => const SizedBox(height: 7),
+          ),
+        ),
+      );
+      expect(resolved, isNotEmpty);
+      expect(resolved.toSet(), {40});
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey(40))).dy + 80,
+        closeTo(313, 0.01),
+      );
+    },
+  );
+
+  testWidgets("a null initial resolver preserves an exact item-zero offset", (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ScrollablePositionedList(
+          itemCount: 10,
+          padding: const EdgeInsets.only(top: 30),
+          initialOffset: 9,
+          initialTargetRectResolver: (_, child) => null,
+          itemBuilder: (_, index) =>
+              SizedBox(key: ValueKey(index), height: 1000),
+        ),
+      ),
+    );
+    expect(tester.getTopLeft(find.byKey(const ValueKey(0))).dy, 9);
+  });
+
+  testWidgets("PageStorage takes precedence over an initial rect resolver", (
+    tester,
+  ) async {
+    final item = ItemScrollController();
+    final bucket = PageStorageBucket();
+    var resolutions = 0;
+    Widget list() => MaterialApp(
+      home: PageStorage(
+        bucket: bucket,
+        child: ScrollablePositionedList.builder(
+          key: const PageStorageKey("list"),
+          itemScrollController: item,
+          itemCount: 100,
+          restorePosition: true,
+          initialScrollIndex: 40,
+          initialTargetRectResolver: (_, child) {
+            resolutions++;
+            return const Rect.fromLTWH(0, 80, 100, 40);
+          },
+          itemBuilder: (_, index) =>
+              SizedBox(key: ValueKey(index), height: 300),
+        ),
+      ),
+    );
+    await tester.pumpWidget(list());
+    expect(resolutions, greaterThan(0));
+    await tester.pumpAndSettle();
+    final jumped = item.jumpToAsync(index: 50, offset: -23);
+    await tester.pump();
+    await jumped;
+    final saved = item.anchor!;
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    resolutions = 0;
+    await tester.pumpWidget(list());
+    expect(resolutions, 0);
+    expect(item.anchor!.index, saved.index);
+    expect(item.anchor!.offsetInItem, closeTo(saved.offsetInItem, 0.01));
+  });
+
   testWidgets("a supplied rect resolver gives item zero exact geometry", (
     tester,
   ) async {
