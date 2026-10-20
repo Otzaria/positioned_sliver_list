@@ -20,6 +20,9 @@ class FenwickTree {
   }
 
   int get size => _size;
+
+  /// Number of elements that fit without reallocating the backing store.
+  int get capacity => _tree.length - 1;
   int _size;
   Float64List _tree;
 
@@ -46,6 +49,7 @@ class FenwickTree {
   // Returns the index of last element whose prefix sum is less than or equal to prefixSum.
   int inverseQuery(double prefixSum) {
     final size = _size;
+    if (size == 0) return 0;
     var index = 0;
     var bitmask = 1 << size.bitLength - 1;
     while (bitmask != 0 && index < size) {
@@ -83,13 +87,17 @@ class FenwickTree {
     _size = index;
   }
 
-  /// Truncates the tree to [newSize] elements in O(1).
-  ///
-  /// Fenwick node `i` only depends on elements with index <= i, so nodes
-  /// within the new size remain valid; stale nodes beyond it are ignored and
-  /// fully recomputed by [append] if the tree grows again.
+  /// Truncates to [newSize], releasing excess storage at quarter capacity.
+  /// Existing prefix nodes remain valid; [append] recomputes discarded nodes.
   void truncate(int newSize) {
     assert(newSize >= 0 && newSize <= _size);
     _size = newSize;
+    final requiredLength = newSize + 1;
+    // Keep headroom so small shrink/grow cycles do not repeatedly allocate.
+    if (_tree.length > 16 && requiredLength <= _tree.length ~/ 4) {
+      final trimmed = Float64List(math.max(requiredLength * 2, 16));
+      trimmed.setRange(0, requiredLength, _tree);
+      _tree = trimmed;
+    }
   }
 }

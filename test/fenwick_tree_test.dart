@@ -5,6 +5,40 @@ import "package:positioned_sliver_list/src/fenwick_tree.dart";
 import "package:test/test.dart";
 
 void main() {
+  test("large truncation releases memory and can grow again", () {
+    final tree = FenwickTree(size: 1000000);
+    for (var i = 0; i < 10; i++) {
+      tree.update(i, i + 1.0);
+    }
+    tree.truncate(10);
+    expect(tree.capacity, lessThanOrEqualTo(32));
+    expect(tree.query(10), 55);
+    tree.update(2, 7);
+    for (var i = 0; i < 100; i++) {
+      tree.append(2);
+    }
+    expect(tree.query(110), 262);
+    expect(tree.inverseQuery(62), 10);
+    tree.truncate(0);
+    expect(tree.capacity, lessThanOrEqualTo(16));
+    expect(tree.query(0), 0);
+    expect(tree.inverseQuery(0), 0);
+    tree.append(9);
+    expect(tree.query(1), 9);
+  });
+
+  test("small changes keep capacity across shrink and regrowth", () {
+    final tree = FenwickTree(size: 1024);
+    final initialCapacity = tree.capacity;
+    tree.truncate(800);
+    expect(tree.capacity, initialCapacity);
+    for (var i = 800; i < 1024; i++) {
+      tree.append(1);
+    }
+    expect(tree.capacity, initialCapacity);
+    expect(tree.query(1024), 224);
+  });
+
   test("FenwickTree works", () {
     final tree = FenwickTree(size: 10);
     tree.update(0, 2);
