@@ -18,11 +18,11 @@ The fixes from the Telosnex and ahey forks of `super_sliver_list` are included.
 
 #### Fast scrolling with large amount of items with variable extents
 
-`SliverList` performance degrades heavily when quickly scrolling through a large amount of items with different extents, requiring workarounds such as using `FixedExtentSliverList` or prototype items. `SuperSliverList` uses different layout algorithm and can handle virtually unlimited number of items with variable extents without any slow-downs.
+`SuperSliverList` keeps cumulative item extents in a Fenwick tree, so looking up an offset or updating a measured extent takes logarithmic time. Widgets are built for the viewport and its cache area; a distant index jump does not need to build the items between the current position and its target. Extent metadata still uses memory proportional to the item count, and creating or refreshing per-item estimates takes linear time.
 
 #### Ability to jump or animate to specific item
 
-`SliverList` does not provide any way to jump or animate a particular index. There is a [scrollable_positioned_list](https://pub.dev/packages/scrollable_positioned_list) package that provides this functionality, but it comes at a cost, as it requires custom scroll view, does not seem to work properly with Scrollbars, can't be used with with other slivers (such as sticky headers) and ultimately is backed by a `SliverList` so it has the same performance issues as mentioned above.
+Flutter's `SliverList` does not provide index-based navigation. This package combines that navigation with the normal sliver and `ScrollController` APIs, including lists used alongside other slivers.
 
 `SuperSliverList` provides a way to reliably jump and animate to a specific item, even if the item is outside of the viewport and has not been built or laid out yet.
 
@@ -189,7 +189,7 @@ Behavior that differs from `scrollable_positioned_list`:
 
 ## Advanced
 
-Very roughtly speaking `SuperSliverList` works by estimating the extent of items that are outside of viewport and when these items are scrolled into the viewport cache area the scroll position is transparently adjusted to account of the difference between estimated and actual extents. On small lists this difference may result in scrollbar movement not being perfectly aligned with list movement. `SuperSliverList` provides two ways to rectify this:
+`SuperSliverList` estimates extents outside the laid-out area and corrects the scroll position when measured extents replace those estimates. A scrollbar uses the resulting pixel metrics: its range can change as more content is measured. Accurate estimates reduce those changes; they do not replace measurement. Avoid eager widget layout merely to make the initial scrollbar exact on a very large list.
 
 ### Improve extent estimation
 

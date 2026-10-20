@@ -1,5 +1,4 @@
-import "dart:async";
-
+import "package:flutter/foundation.dart" show AsyncCallback;
 import "package:flutter/material.dart" show Colors;
 import "package:headless_widgets/headless_widgets.dart" as w;
 import "package:pixel_snap/widgets.dart";
@@ -20,7 +19,7 @@ class Button extends StatelessWidget {
 
   final Widget child;
   final VoidCallback? onPressed;
-  final FutureOr<void> Function()? onPressedDown;
+  final AsyncCallback? onPressedDown;
   final bool tapToFocus;
   final Duration? keyUpTimeout;
   final EdgeInsetsGeometry padding;
