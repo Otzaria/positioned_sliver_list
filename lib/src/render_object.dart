@@ -1332,7 +1332,16 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     RenderBox child,
     TargetRectResolver? resolver,
   ) {
-    final rect = resolver?.call(index, child);
+    if (resolver == null) return 0;
+    Rect? resolved;
+    if (_extentManager.isLocked) {
+      invokeLayoutCallback<SliverConstraints>((_) {
+        resolved = resolver(index, child);
+      });
+    } else {
+      resolved = resolver(index, child);
+    }
+    final rect = resolved;
     if (rect == null) return 0;
     if (!rect.isFinite) {
       throw ArgumentError.value(rect, "targetRect", "Must be finite.");
@@ -1798,6 +1807,20 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     }
     final pendingTarget = _pendingTarget;
     final pendingIndex = pendingTarget?.index.clamp(0, totalChildCount - 1);
+    if (pendingTarget?.targetRectResolver != null) {
+      final targetChild = _liveChildForIndex(pendingIndex!);
+      if (targetChild != null) {
+        // Fixed-size boundaries can otherwise lay out after the target is measured.
+        invokeLayoutCallback<SliverConstraints>((_) {
+          void invalidate(RenderObject object) {
+            object.visitChildren(invalidate);
+            object.markNeedsLayout();
+          }
+
+          invalidate(targetChild);
+        });
+      }
+    }
     // Move to the target's estimated position first, so that only the items
     // around it are built.
     if (pendingTarget != null &&

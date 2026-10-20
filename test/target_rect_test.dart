@@ -6,6 +6,152 @@ import "package:flutter_test/flutter_test.dart";
 import "package:positioned_sliver_list/positioned_sliver_list.dart";
 
 void main() {
+  for (final mode in ["initial", "jump", "animation"]) {
+    testWidgets(
+      "nested RenderBox sizes are readable in $mode target resolver",
+      (tester) async {
+        final scroll = ScrollController();
+        final list = ListController();
+        final inner = GlobalKey();
+        addTearDown(scroll.dispose);
+        addTearDown(list.dispose);
+        var calls = 0;
+        Rect resolve(int index, RenderBox item) {
+          ++calls;
+          final box = inner.currentContext!.findRenderObject()! as RenderBox;
+          expect(box.size.height, 100);
+          return MatrixUtils.transformRect(
+            box.getTransformTo(item),
+            Offset.zero & box.size,
+          );
+        }
+
+        await tester.pumpWidget(
+          _view(
+            scroll: scroll,
+            list: list,
+            initialIndex: mode == "initial" ? 5000 : null,
+            initialAlignment: 0.3,
+            initialTargetRectResolver: mode == "initial" ? resolve : null,
+            targetBuilder: () => Column(
+              children: [
+                const SizedBox(height: 1700),
+                SizedBox(key: inner, height: 100),
+                const Spacer(),
+              ],
+            ),
+          ),
+        );
+        if (mode == "jump") {
+          final jump = list.jumpToIndex(
+            5000,
+            alignment: 0.3,
+            targetRectResolver: resolve,
+          );
+          await tester.pumpAndSettle();
+          await jump;
+        } else if (mode == "animation") {
+          final animation = list.scrollToIndex(
+            5000,
+            alignment: 0.3,
+            duration: const Duration(milliseconds: 200),
+            targetRectResolver: resolve,
+          );
+          await tester.pumpAndSettle();
+          await animation;
+        }
+        expect(calls, greaterThan(0));
+        expect(tester.getTopLeft(find.byKey(inner)).dy, closeTo(180, 0.01));
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
+  testWidgets(
+    "inner target uses descendant geometry changed in the same frame",
+    (tester) async {
+      final scroll = ScrollController();
+      final list = ListController();
+      final inner = GlobalKey();
+      addTearDown(scroll.dispose);
+      addTearDown(list.dispose);
+      var prefix = 1700.0;
+      var height = 100.0;
+      var layouts = 0;
+      var builds = 0;
+      late StateSetter rebuild;
+      Rect resolve(int index, RenderBox item) {
+        final box = inner.currentContext!.findRenderObject()! as RenderBox;
+        final offset = MatrixUtils.transformPoint(
+          box.getTransformTo(item),
+          Offset(0, box.size.height * 0.25),
+        );
+        return Rect.fromLTWH(offset.dx, offset.dy, 0, 0);
+      }
+
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (_, setState) {
+            rebuild = setState;
+            return _view(
+              scroll: scroll,
+              list: list,
+              initialIndex: 5000,
+              initialAlignment: 0.3,
+              initialTargetRectResolver: resolve,
+              onBuild: () => ++builds,
+              targetBuilder: () => _LayoutCounter(
+                onLayout: () => ++layouts,
+                child: Column(
+                  children: [
+                    SizedBox(height: prefix),
+                    SizedBox(key: inner, height: height),
+                    const Spacer(),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      );
+      expect(tester.getTopLeft(find.byKey(inner)).dy + 25, closeTo(180, 0.01));
+      layouts = 0;
+      builds = 0;
+      final same = list.jumpToIndex(
+        5000,
+        alignment: 0.3,
+        targetRectResolver: resolve,
+      );
+      await tester.pump();
+      await same;
+      expect(layouts, 1);
+      expect(builds, 0);
+      expect(tester.binding.hasScheduledFrame, isFalse);
+      rebuild(() {
+        prefix = 700;
+        height = 400;
+      });
+      final jump = list.jumpToIndex(
+        5000,
+        alignment: 0.3,
+        targetRectResolver: resolve,
+      );
+      await tester.pump();
+      await jump;
+      expect(tester.getSize(find.byKey(inner)).height, 400);
+      expect(tester.getTopLeft(find.byKey(inner)).dy + 100, closeTo(180, 0.01));
+      final settledLayouts = layouts;
+      final settledBuilds = builds;
+      await tester.pump();
+      expect(layouts, settledLayouts);
+      expect(builds, settledBuilds);
+      expect(tester.binding.hasScheduledFrame, isFalse);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   testWidgets("initial inner target is resolved in the first frame", (
     tester,
   ) async {
@@ -193,6 +339,7 @@ Widget _view({
   double initialAlignment = 0,
   double initialOffset = 0,
   TargetRectResolver? initialTargetRectResolver,
+  Widget Function()? targetBuilder,
 }) => Directionality(
   textDirection: direction,
   child: Align(
@@ -214,6 +361,7 @@ Widget _view({
             initialTargetRectResolver: initialTargetRectResolver,
             itemCount: 10000,
             extentEstimation: (_, _) => 1,
+            estimationKey: "constant-target-test-extents",
             itemBuilder: (_, index) {
               onBuild?.call();
               final extent = index == 5000 ? 2400.0 : 100.0;
@@ -221,6 +369,7 @@ Widget _view({
                 key: ValueKey(index),
                 height: axis == Axis.vertical ? extent : null,
                 width: axis == Axis.horizontal ? extent : null,
+                child: index == 5000 ? targetBuilder?.call() : null,
               );
             },
           ),
@@ -229,3 +378,25 @@ Widget _view({
     ),
   ),
 );
+
+class _LayoutCounter extends SingleChildRenderObjectWidget {
+  const _LayoutCounter({required this.onLayout, required super.child});
+
+  final VoidCallback onLayout;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderLayoutCounter(onLayout);
+}
+
+class _RenderLayoutCounter extends RenderProxyBox {
+  _RenderLayoutCounter(this.onLayout);
+
+  final VoidCallback onLayout;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    onLayout();
+  }
+}
