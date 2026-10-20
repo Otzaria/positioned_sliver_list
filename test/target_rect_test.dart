@@ -6,6 +6,36 @@ import "package:flutter_test/flutter_test.dart";
 import "package:positioned_sliver_list/positioned_sliver_list.dart";
 
 void main() {
+  testWidgets("initial inner target is resolved in the first frame", (
+    tester,
+  ) async {
+    final scroll = ScrollController();
+    final list = ListController();
+    addTearDown(scroll.dispose);
+    addTearDown(list.dispose);
+    RenderBox? targetBox;
+    await tester.pumpWidget(
+      _view(
+        scroll: scroll,
+        list: list,
+        initialIndex: 5000,
+        initialAlignment: 0.35,
+        initialOffset: 12,
+        initialTargetRectResolver: (index, box) {
+          expect(index, 5000);
+          targetBox = box;
+          return Rect.fromLTWH(0, box.size.height * 0.75, 0, 0);
+        },
+      ),
+    );
+    expect(targetBox, isNotNull);
+    expect(
+      targetBox!.localToGlobal(Offset(0, targetBox!.size.height * 0.75)).dy,
+      closeTo(222, 0.01),
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
+
   for (final axis in Axis.values) {
     for (final reverse in [false, true]) {
       for (final direction in TextDirection.values) {
@@ -159,6 +189,10 @@ Widget _view({
   bool reverse = false,
   TextDirection direction = TextDirection.ltr,
   VoidCallback? onBuild,
+  int? initialIndex,
+  double initialAlignment = 0,
+  double initialOffset = 0,
+  TargetRectResolver? initialTargetRectResolver,
 }) => Directionality(
   textDirection: direction,
   child: Align(
@@ -174,6 +208,10 @@ Widget _view({
         slivers: [
           SuperSliverList.builder(
             listController: list,
+            initialIndex: initialIndex,
+            initialAlignment: initialAlignment,
+            initialOffset: initialOffset,
+            initialTargetRectResolver: initialTargetRectResolver,
             itemCount: 10000,
             extentEstimation: (_, _) => 1,
             itemBuilder: (_, index) {

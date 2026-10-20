@@ -897,6 +897,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
+    this.initialTargetRectResolver,
     this.overscrollToTarget = OverscrollToTarget.none,
   });
 
@@ -918,6 +919,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
+    this.initialTargetRectResolver,
     this.overscrollToTarget = OverscrollToTarget.none,
     bool addAutomaticKeepAlives = true,
     bool addRepaintBoundaries = true,
@@ -952,6 +954,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
+    this.initialTargetRectResolver,
     this.overscrollToTarget = OverscrollToTarget.none,
     int? itemCount,
     bool addAutomaticKeepAlives = true,
@@ -1004,6 +1007,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
+    this.initialTargetRectResolver,
     this.overscrollToTarget = OverscrollToTarget.none,
     bool addAutomaticKeepAlives = true,
     bool addRepaintBoundaries = true,
@@ -1073,6 +1077,9 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
   /// Pixels added to [initialAlignment].
   final double initialOffset;
 
+  /// Resolves the initial target inside the item before the first paint.
+  final TargetRectResolver? initialTargetRectResolver;
+
   /// Whether a jump or animation to an index (and [initialIndex]) may leave
   /// blank space before the first or after the last item so that the target
   /// lands exactly where requested. See [OverscrollToTarget].
@@ -1105,6 +1112,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
       initialIndex: initialIndex,
       initialAlignment: initialAlignment,
       initialOffset: initialOffset,
+      initialTargetRectResolver: initialTargetRectResolver,
       overscrollToTarget: overscrollToTarget,
     );
   }

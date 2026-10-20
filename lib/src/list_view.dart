@@ -4,16 +4,9 @@ import "package:flutter/widgets.dart";
 
 import "super_sliver_list.dart";
 
-/// This is a drop-in replacement Flutter [ListView] that provides much better
-/// performance with large number of children with variable extents. Unlike
-/// [ListView] the performance does not depend on the number of children and the
-/// list can easily handle tens or hundreds of thousands of children without
-/// having to specify hardcoded extent or prototype child.
-///
-/// On top of performance improvements, [SuperListView] also has the ability to
-/// jump / animate to a specific item in the list.
-///
-/// See the [ListView] documentation for more details on how to use it.
+/// A [ListView] backed by [SuperSliverList], with index-based navigation.
+/// Extent lookups and measured updates are logarithmic in the item count;
+/// metadata and full estimate refreshes are linear in that count.
 class SuperListView extends BoxScrollView {
   SuperListView({
     super.key,
@@ -43,6 +36,7 @@ class SuperListView extends BoxScrollView {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
+    this.initialTargetRectResolver,
     this.overscrollToTarget = OverscrollToTarget.none,
   }) : childrenDelegate = SliverChildListDelegate(
          children,
@@ -85,6 +79,7 @@ class SuperListView extends BoxScrollView {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
+    this.initialTargetRectResolver,
     this.overscrollToTarget = OverscrollToTarget.none,
   }) : assert(itemCount == null || itemCount >= 0),
        assert(semanticChildCount == null || semanticChildCount <= itemCount!),
@@ -131,6 +126,7 @@ class SuperListView extends BoxScrollView {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
+    this.initialTargetRectResolver,
     this.overscrollToTarget = OverscrollToTarget.none,
   }) : assert(itemCount >= 0),
        childrenDelegate = SliverChildBuilderDelegate(
@@ -180,6 +176,7 @@ class SuperListView extends BoxScrollView {
     this.initialIndex,
     this.initialAlignment = 0.0,
     this.initialOffset = 0.0,
+    this.initialTargetRectResolver,
     this.overscrollToTarget = OverscrollToTarget.none,
   });
 
@@ -237,6 +234,9 @@ class SuperListView extends BoxScrollView {
   /// Pixels added to [initialAlignment].
   final double initialOffset;
 
+  /// Resolves the initial target inside the item before the first paint.
+  final TargetRectResolver? initialTargetRectResolver;
+
   /// See [SuperSliverList.overscrollToTarget].
   final OverscrollToTarget overscrollToTarget;
 
@@ -253,6 +253,7 @@ class SuperListView extends BoxScrollView {
       initialIndex: initialIndex,
       initialAlignment: initialAlignment,
       initialOffset: initialOffset,
+      initialTargetRectResolver: initialTargetRectResolver,
       overscrollToTarget: overscrollToTarget,
     );
   }

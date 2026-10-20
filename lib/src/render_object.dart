@@ -125,6 +125,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     int? initialIndex,
     double initialAlignment = 0.0,
     double initialOffset = 0.0,
+    TargetRectResolver? initialTargetRectResolver,
     OverscrollToTarget overscrollToTarget = OverscrollToTarget.none,
   }) : _estimationKey = estimationKey,
        _overscrollToTarget = overscrollToTarget,
@@ -137,6 +138,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
         index: initialIndex,
         alignment: initialAlignment,
         offset: initialOffset,
+        targetRectResolver: initialTargetRectResolver,
         owner: _extentManager.beginReveal(),
       );
       _didResolveInitialScrollPosition = true;
