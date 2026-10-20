@@ -128,8 +128,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
        _didResolveInitialScrollPosition =
            initialScrollPosition == InitialScrollPosition.start {
     this.extentPrecalculationPolicy = extentPrecalculationPolicy;
-    if (initialIndex != null &&
-        (initialIndex > 0 || initialAlignment != 0 || initialOffset != 0)) {
+    if (initialIndex != null) {
       _pendingTarget = _PendingItemTarget(
         index: initialIndex,
         alignment: initialAlignment,
@@ -1762,6 +1761,15 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     var startOffset = constraints.scrollOffset + constraints.cacheOrigin;
     var remainingExtent = constraints.remainingCacheExtent;
 
+    if (pendingIndex != null && _liveChildForIndex(pendingIndex) == null) {
+      var count = 0;
+      for (var child = firstChild; child != null; child = childAfter(child)) {
+        count++;
+      }
+      collectGarbage(count, 0);
+      layoutState.didRemoveChildren |= count > 0;
+    }
+
     // First go through all children, remove those that are no longer
     // in cache area and layout those that are in the cache area.
     int leadingGarbage = 0;
@@ -1983,9 +1991,11 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
 
       // Put first child at the scroll offset, not the beginning of cache area
       final firstChildScrollOffset = constraints.scrollOffset;
-      final firstChildIndex = anchoredAtEnd
-          ? totalChildCount - 1
-          : indexForOffset(firstChildScrollOffset) ?? totalChildCount - 1;
+      final firstChildIndex =
+          pendingIndex ??
+          (anchoredAtEnd
+              ? totalChildCount - 1
+              : indexForOffset(firstChildScrollOffset) ?? totalChildCount - 1);
 
       if (_log.isLoggable(Level.FINE)) {
         _log.fine("Adding initial child with index $firstChildIndex");
