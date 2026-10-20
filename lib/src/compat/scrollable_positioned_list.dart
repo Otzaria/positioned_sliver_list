@@ -24,6 +24,8 @@ typedef ItemExtentEstimator =
 const double _defaultCacheExtentScreens = 2;
 const double _defaultItemExtentEstimate = 100.0;
 
+enum _PageStorageSlot { anchor }
+
 /// A scrollable list that can jump or animate to an item by index and reports
 /// which items are visible, with the API of `scrollable_positioned_list`.
 ///
@@ -251,9 +253,8 @@ class ItemScrollController {
   /// list.
   ListController? get listController => _client?._listController;
 
-  /// The first visible item and how far the viewport's leading edge is inside
-  /// it. `jumpTo(index: anchor.index, offset: -anchor.offsetInItem)` restores
-  /// it.
+  /// הפריט הראשון שנראה והמרחק מקצהו לתחילת התצוגה.
+  /// [restoreAnchor] משחזר אותו, כולל ריפוד שנראה לפני הפריט הראשון.
   ListAnchor? get anchor => _client?._anchor;
 
   /// Places the leading edge of the item at [index] at [alignment] of the
@@ -266,7 +267,33 @@ class ItemScrollController {
   /// cannot be moved to the top of the viewport.
   void jumpTo({required int index, double alignment = 0, double offset = 0}) {
     assert(isAttached, "ItemScrollController is not attached.");
-    _client!._jumpTo(index: index, alignment: alignment, offset: offset);
+    unawaited(jumpToAsync(index: index, alignment: alignment, offset: offset));
+  }
+
+  /// כמו [jumpTo], ומשלים אחרי הפריסה שמיישמת את הקפיצה או ביטולה.
+  Future<void> jumpToAsync({
+    required int index,
+    double alignment = 0,
+    double offset = 0,
+  }) {
+    assert(isAttached, "ItemScrollController is not attached.");
+    return _client!._jumpTo(index: index, alignment: alignment, offset: offset);
+  }
+
+  /// משחזר עוגן בלי להוסיף את הריפוד של [jumpTo] לפריט הראשון.
+  void restoreAnchor(ListAnchor anchor) {
+    unawaited(restoreAnchorAsync(anchor));
+  }
+
+  /// כמו [restoreAnchor], ומשלים אחרי הפריסה שמיישמת את השחזור או ביטולו.
+  Future<void> restoreAnchorAsync(ListAnchor anchor) {
+    assert(isAttached, "ItemScrollController is not attached.");
+    return _client!._jumpTo(
+      index: anchor.index,
+      alignment: 0,
+      offset: -anchor.offsetInItem,
+      includeLeadingPadding: false,
+    );
   }
 
   /// Animates until the item at [index] is at [alignment]; see [jumpTo].
@@ -390,6 +417,8 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
   late int _initialIndex;
   late double _initialAlignment;
   late double _initialOffset;
+  (int, double)? _restoredPosition;
+  Object? _storageIdentifier;
   int _programmaticOperations = 0;
   AnimationHandle? _itemAnimation;
   TargetScrollAnimation? _offsetAnimation;
@@ -422,15 +451,34 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
   double _itemOffset(int itemIndex, double offset) =>
       itemIndex == 0 ? offset + _leadingPadding : offset;
 
+  Object? _computeStorageIdentifier() {
+    Object? keys;
+    bool collect(BuildContext node) {
+      final key = node.widget.key;
+      if (key is PageStorageKey) keys = (keys, key);
+      return node.widget is! PageStorage;
+    }
+
+    if (collect(context)) context.visitAncestorElements(collect);
+    return keys == null ? null : (_PageStorageSlot.anchor, keys);
+  }
+
   @override
   void initState() {
     super.initState();
+    _storageIdentifier = _computeStorageIdentifier();
     _initialIndex = widget.initialScrollIndex;
     _initialAlignment = widget.initialAlignment;
     _initialOffset = widget.initialOffset;
     if (widget.restorePosition) {
-      final saved = PageStorage.maybeOf(context)?.readState(context);
+      final identifier = _storageIdentifier;
+      final saved = identifier == null
+          ? null
+          : PageStorage.maybeOf(
+              context,
+            )?.readState(context, identifier: identifier);
       if (saved is (int, double)) {
+        _restoredPosition = saved;
         _initialIndex = saved.$1;
         _initialAlignment = 0;
         _initialOffset = -saved.$2;
@@ -449,8 +497,15 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
   @override
   void activate() {
     super.activate();
+    _storageIdentifier = _computeStorageIdentifier();
     widget.itemScrollController?._attach(this);
     widget.scrollOffsetController?._attach(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _storageIdentifier = _computeStorageIdentifier();
   }
 
   @override
@@ -463,6 +518,7 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
   @override
   void didUpdateWidget(ScrollablePositionedList oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _storageIdentifier = _computeStorageIdentifier();
     _syncPositionsListener();
     if (oldWidget.itemScrollController != widget.itemScrollController) {
       oldWidget.itemScrollController?._detach(this);
@@ -596,10 +652,12 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
     _lastPositions = positions;
     if (widget.restorePosition) {
       final anchor = _anchor;
-      if (anchor != null) {
-        PageStorage.maybeOf(
-          context,
-        )?.writeState(context, (anchor.index, anchor.offsetInItem));
+      final identifier = _storageIdentifier;
+      if (anchor != null && identifier != null) {
+        PageStorage.maybeOf(context)?.writeState(context, (
+          anchor.index,
+          anchor.offsetInItem,
+        ), identifier: identifier);
       }
     }
     final listener = widget.itemPositionsListener;
@@ -611,22 +669,40 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
   ListAnchor? get _anchor {
     final anchor = _listController.isAttached ? _listController.anchor : null;
     if (anchor == null || !widget._separated) {
-      return anchor;
+      return anchor == null ? null : _withVisiblePadding(anchor);
     }
     if (anchor.index.isEven) {
-      return ListAnchor(
-        index: anchor.index ~/ 2,
-        offsetInItem: anchor.offsetInItem,
-        itemExtent: anchor.itemExtent,
+      return _withVisiblePadding(
+        ListAnchor(
+          index: anchor.index ~/ 2,
+          offsetInItem: anchor.offsetInItem,
+          itemExtent: anchor.itemExtent,
+        ),
       );
     }
     // A separator: anchor to the item before it.
     final itemIndex = anchor.index ~/ 2;
     final (extent, _) = _listController.extentForIndex(anchor.index - 1);
+    return _withVisiblePadding(
+      ListAnchor(
+        index: itemIndex,
+        offsetInItem: anchor.offsetInItem + extent,
+        itemExtent: extent,
+      ),
+    );
+  }
+
+  ListAnchor _withVisiblePadding(ListAnchor anchor) {
+    if (anchor.index != 0 || !_scrollController.hasClients) return anchor;
+    final padding = math.max(
+      0.0,
+      _leadingPadding - _scrollController.position.pixels,
+    );
+    if (padding == 0) return anchor;
     return ListAnchor(
-      index: itemIndex,
-      offsetInItem: anchor.offsetInItem + extent,
-      itemExtent: extent,
+      index: anchor.index,
+      offsetInItem: anchor.offsetInItem - padding,
+      itemExtent: anchor.itemExtent,
     );
   }
 
@@ -644,23 +720,22 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
     _offsetAnimation = null;
   }
 
-  void _jumpTo({
+  Future<void> _jumpTo({
     required int index,
     required double alignment,
     required double offset,
+    bool includeLeadingPadding = true,
   }) {
     final itemIndex = _clampIndex(index);
     if (itemIndex == null || !_listController.isAttached) {
-      return;
+      return Future<void>.value();
     }
     _cancelAnimations();
-    unawaited(
-      _programmatic(
-        () => _listController.jumpToIndex(
-          _childIndex(itemIndex),
-          alignment: alignment,
-          offset: _itemOffset(itemIndex, offset),
-        ),
+    return _programmatic(
+      () => _listController.jumpToIndex(
+        _childIndex(itemIndex),
+        alignment: alignment,
+        offset: includeLeadingPadding ? _itemOffset(itemIndex, offset) : offset,
       ),
     );
   }
@@ -783,7 +858,9 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
           _estimate(index, crossAxisExtent)!,
       initialIndex: _childIndex(_initialIndex),
       initialAlignment: _initialAlignment,
-      initialOffset: _itemOffset(_initialIndex, _initialOffset),
+      initialOffset: _restoredPosition == null
+          ? _itemOffset(_initialIndex, _initialOffset)
+          : _initialOffset,
       overscrollToTarget: widget.overscrollToTarget,
     );
     return Listener(
