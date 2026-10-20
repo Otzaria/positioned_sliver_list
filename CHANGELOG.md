@@ -1,3 +1,12 @@
+## 0.2.1
+
+* Run target rectangle resolvers through Flutter's layout callback protocol so
+  they can read laid-out descendant geometry in debug builds as well as release.
+* Refresh a mounted target's descendant layout before resolving its rectangle,
+  including when nested size changes leave the list item's total height unchanged.
+* Add regressions that resolve targets inside nested render boxes during the
+  first layout, jumps and animations.
+
 ## 0.2.0
 
 * Refresh numerical extent estimates on width changes, explicit invalidation and
