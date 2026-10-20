@@ -5,6 +5,128 @@ import "package:flutter_test/flutter_test.dart";
 import "package:positioned_sliver_list/positioned_sliver_list.dart";
 
 void main() {
+  testWidgets(
+    "scroll pixels include preceding slivers outside the paint area",
+    (tester) async {
+      final scroll = ScrollController();
+      final list = ListController();
+      addTearDown(scroll.dispose);
+      addTearDown(list.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SizedBox(
+            height: 400,
+            child: CustomScrollView(
+              controller: scroll,
+              slivers: [
+                const SliverToBoxAdapter(child: SizedBox(height: 150)),
+                SliverPadding(
+                  padding: const EdgeInsets.only(top: 30),
+                  sliver: SuperSliverList.builder(
+                    listController: list,
+                    itemCount: 5000,
+                    extentEstimation: (_, _) => 100,
+                    itemBuilder: (_, index) =>
+                        SizedBox(key: ValueKey(index), height: 100),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      void verifyPixels() {
+        for (final pixels in [0.0, 149.0, 150.0, 179.0]) {
+          expect(list.indexForScrollOffset(pixels), isNull);
+        }
+        expect(list.indexForScrollOffset(180), 0);
+        expect(list.indexForScrollOffset(279), 0);
+        expect(list.indexForScrollOffset(280), 1);
+        expect(list.indexForScrollOffset(100180), 1000);
+      }
+
+      verifyPixels();
+      final jump = list.jumpToIndex(1000);
+      await tester.pumpAndSettle();
+      await jump;
+      expect(scroll.offset, closeTo(100180, 0.01));
+      verifyPixels();
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets("merged estimate batches preserve a measured reading anchor", (
+    tester,
+  ) async {
+    final scroll = ScrollController();
+    final list = ListController();
+    addTearDown(scroll.dispose);
+    addTearDown(list.dispose);
+    await tester.pumpWidget(
+      _viewport(
+        scroll: scroll,
+        list: list,
+        count: 5000,
+        itemBuilder: (_, index) => SizedBox(key: ValueKey(index), height: 100),
+      ),
+    );
+    final placement = list.jumpToIndex(250, offset: -37);
+    await tester.pumpAndSettle();
+    await placement;
+    final first = list.updateEstimatedExtents({0: 200, 4999: 300});
+    final second = list.updateEstimatedExtents({0: 250, 100: 180, 4999: 400});
+    await tester.pump();
+    await Future.wait([first, second]);
+    expect(list.anchor!.index, 250);
+    expect(list.anchor!.offsetInItem, closeTo(37, 0.01));
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey(250))).dy,
+      closeTo(-37, 0.01),
+    );
+    expect(list.extentForIndex(0), (250.0, true));
+    expect(list.extentForIndex(4999), (400.0, true));
+    expect(find.byKey(const ValueKey(4999)), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets("detaching completes estimate batches before reattachment", (
+    tester,
+  ) async {
+    final scroll = ScrollController();
+    final list = ListController();
+    addTearDown(scroll.dispose);
+    addTearDown(list.dispose);
+    Widget view() => _viewport(
+      scroll: scroll,
+      list: list,
+      count: 5000,
+      itemBuilder: (_, index) => SizedBox(key: ValueKey(index), height: 100),
+    );
+    await tester.pumpWidget(view());
+    var firstCompleted = false;
+    var secondCompleted = false;
+    final first = list.updateEstimatedExtents({4000: 300}).then((_) {
+      firstCompleted = true;
+    });
+    final second = list.updateEstimatedExtents({4001: 400}).then((_) {
+      secondCompleted = true;
+    });
+    await tester.pumpWidget(const SizedBox());
+    expect(firstCompleted, isTrue);
+    expect(secondCompleted, isTrue);
+    await Future.wait([first, second]);
+    expect(list.isAttached, isFalse);
+    await tester.pumpWidget(view());
+    await tester.pumpAndSettle();
+    expect(list.extentForIndex(4000), (100.0, true));
+    expect(list.extentForIndex(4001), (100.0, true));
+    expect(list.anchor!.index, 0);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets("wheel cancels a distant reveal before delayed content grows", (
     tester,
   ) async {
