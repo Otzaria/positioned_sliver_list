@@ -20,6 +20,11 @@
   moves nothing no longer notifies, unless the listener, the separated mode,
   `listController` or `restorePosition` changed. Scrolls, jumps and position
   restoration are unaffected.
+* Add `crossAxisLayoutKey` to `SuperSliverList`, `SuperListView` and
+  `ScrollablePositionedList`. A width change for which the key stays equal
+  keeps measured extents and estimates and calls the estimator for no item;
+  without a key every width change still refreshes all estimates.
+  `EstimateRefreshStats.skippedResizeCount` counts the skipped changes.
 
 ## 0.2.2
 

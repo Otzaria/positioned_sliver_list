@@ -797,6 +797,13 @@ class ListController extends ChangeNotifier {
 typedef ExtentEstimationProvider =
     double Function(int? index, double crossAxisExtent);
 
+/// Maps the cross axis extent available to the items to a value that changes
+/// whenever their main axis extents may change, for example
+/// `(width) => math.min(width, maxColumnWidth)`.
+///
+/// Called during layout, so it must be cheap and free of side effects.
+typedef CrossAxisLayoutKey = Object? Function(double crossAxisExtent);
+
 abstract class ExtentPrecalculationPolicyDelegate {
   void valueDidChange();
 }
@@ -897,6 +904,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.listController,
     this.extentEstimation,
     this.estimationKey,
+    this.crossAxisLayoutKey,
     this.delayPopulatingCacheArea = true,
     this.layoutKeptAliveChildren = false,
     this.initialScrollPosition = InitialScrollPosition.start,
@@ -919,6 +927,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.listController,
     this.extentEstimation,
     this.estimationKey,
+    this.crossAxisLayoutKey,
     this.delayPopulatingCacheArea = true,
     this.layoutKeptAliveChildren = false,
     this.initialScrollPosition = InitialScrollPosition.start,
@@ -954,6 +963,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.listController,
     this.extentEstimation,
     this.estimationKey,
+    this.crossAxisLayoutKey,
     this.delayPopulatingCacheArea = true,
     this.layoutKeptAliveChildren = false,
     this.initialScrollPosition = InitialScrollPosition.start,
@@ -1007,6 +1017,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     this.listController,
     this.extentEstimation,
     this.estimationKey,
+    this.crossAxisLayoutKey,
     this.delayPopulatingCacheArea = true,
     this.layoutKeptAliveChildren = false,
     this.initialScrollPosition = InitialScrollPosition.start,
@@ -1046,6 +1057,16 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
   /// Changes when the meaning of [extentEstimation] changes.
   /// Callback identity alone never invalidates cached estimates.
   final Object? estimationKey;
+
+  /// Tells which cross axis extent changes can change item extents.
+  ///
+  /// When the cross axis extent changes and this returns a value equal (`==`)
+  /// to the one for the previous extent, measured extents and estimates are
+  /// kept; laid out items are still laid out at the new extent. When null,
+  /// every change refreshes all estimates. [extentEstimation] should depend on
+  /// the cross axis extent only through this value. A new function that
+  /// returns a different value for the current extent refreshes estimates.
+  final CrossAxisLayoutKey? crossAxisLayoutKey;
 
   /// Optional policy that can be used to asynchronously precalculate the extents
   /// of the items in the list. This can be useful allow precise scrolling on small
@@ -1112,6 +1133,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
       extentPrecalculationPolicy: extentPrecalculationPolicy,
       estimateExtent: extentEstimation ?? _defaultEstimateExtent,
       estimationKey: estimationKey,
+      crossAxisLayoutKey: crossAxisLayoutKey,
       delayPopulatingCacheArea: delayPopulatingCacheArea,
       layoutKeptAliveChildren: layoutKeptAliveChildren,
       initialScrollPosition: initialScrollPosition,
@@ -1134,6 +1156,7 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     renderSliverList.estimateExtent =
         extentEstimation ?? _defaultEstimateExtent;
     renderSliverList.estimationKey = estimationKey;
+    renderSliverList.crossAxisLayoutKey = crossAxisLayoutKey;
     renderSliverList.delayPopulatingCacheArea = delayPopulatingCacheArea;
     renderSliverList.layoutKeptAliveChildren = layoutKeptAliveChildren;
     renderSliverList.initialScrollPosition = initialScrollPosition;

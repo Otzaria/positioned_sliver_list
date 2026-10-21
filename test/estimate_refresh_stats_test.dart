@@ -121,6 +121,7 @@ void main() {
       refreshCount: 1,
       lastRefreshItemCount: 2,
       lastRefreshDuration: Duration(microseconds: 3),
+      skippedResizeCount: 6,
       indexRebuildCount: 4,
       lastIndexRebuildDuration: Duration(microseconds: 5),
     );
@@ -128,6 +129,7 @@ void main() {
       refreshCount: 1,
       lastRefreshItemCount: 2,
       lastRefreshDuration: Duration(microseconds: 3),
+      skippedResizeCount: 6,
       indexRebuildCount: 4,
       lastIndexRebuildDuration: Duration(microseconds: 5),
     );
@@ -135,5 +137,7 @@ void main() {
     expect(a.hashCode, b.hashCode);
     expect(a, isNot(const EstimateRefreshStats()));
     expect(a.toString(), contains("refreshCount: 1"));
+    expect(a.toString(), contains("skippedResizeCount: 6"));
+    expect(a, isNot(const EstimateRefreshStats(skippedResizeCount: 6)));
   });
 }

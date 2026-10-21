@@ -11,6 +11,7 @@ class EstimateRefreshStats {
     this.refreshCount = 0,
     this.lastRefreshItemCount = 0,
     this.lastRefreshDuration = Duration.zero,
+    this.skippedResizeCount = 0,
     this.indexRebuildCount = 0,
     this.lastIndexRebuildDuration = Duration.zero,
   });
@@ -26,6 +27,10 @@ class EstimateRefreshStats {
   /// Duration of the most recent refresh, excluding the offset index rebuild.
   final Duration lastRefreshDuration;
 
+  /// Number of cross-axis extent changes that kept every extent because the
+  /// list's `crossAxisLayoutKey` returned an equal value for the new extent.
+  final int skippedResizeCount;
+
   /// Number of full rebuilds of the index that maps item indices to scroll
   /// offsets.
   final int indexRebuildCount;
@@ -39,6 +44,7 @@ class EstimateRefreshStats {
       other.refreshCount == refreshCount &&
       other.lastRefreshItemCount == lastRefreshItemCount &&
       other.lastRefreshDuration == lastRefreshDuration &&
+      other.skippedResizeCount == skippedResizeCount &&
       other.indexRebuildCount == indexRebuildCount &&
       other.lastIndexRebuildDuration == lastIndexRebuildDuration;
 
@@ -47,6 +53,7 @@ class EstimateRefreshStats {
     refreshCount,
     lastRefreshItemCount,
     lastRefreshDuration,
+    skippedResizeCount,
     indexRebuildCount,
     lastIndexRebuildDuration,
   );
@@ -56,6 +63,7 @@ class EstimateRefreshStats {
       "EstimateRefreshStats(refreshCount: $refreshCount, "
       "lastRefreshItemCount: $lastRefreshItemCount, "
       "lastRefreshDuration: $lastRefreshDuration, "
+      "skippedResizeCount: $skippedResizeCount, "
       "indexRebuildCount: $indexRebuildCount, "
       "lastIndexRebuildDuration: $lastIndexRebuildDuration)";
 }
@@ -70,6 +78,7 @@ class EstimateRefreshCounters {
   int refreshCount = 0;
   int lastRefreshItemCount = 0;
   int lastRefreshMicros = 0;
+  int skippedResizeCount = 0;
   int indexRebuildCount = 0;
   int lastIndexRebuildMicros = 0;
 
@@ -88,6 +97,7 @@ class EstimateRefreshCounters {
     refreshCount: refreshCount,
     lastRefreshItemCount: lastRefreshItemCount,
     lastRefreshDuration: Duration(microseconds: lastRefreshMicros),
+    skippedResizeCount: skippedResizeCount,
     indexRebuildCount: indexRebuildCount,
     lastIndexRebuildDuration: Duration(microseconds: lastIndexRebuildMicros),
   );

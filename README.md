@@ -184,7 +184,7 @@ if (saved != null) await itemScrollController.restoreAnchorAsync(saved);
 
 Provide `estimateExtent` when you can: items that were never laid out are estimated at 100 pixels otherwise, which makes the scrollbar less steady (jumps are exact either way).
 
-Additions to the original API include `scrollController`, `estimateExtent`, `estimatedSeparatorExtent`, `initialOffset`, `restorePosition`, `overscrollToTarget`, `notifyPositionsOnRebuild`, an `offset` for `jumpTo`/`scrollTo`, `ItemScrollController.scrollController`/`listController`/`anchor`, `jumpToAsync`, `restoreAnchor`/`restoreAnchorAsync`, and `ScrollOffsetController.jumpBy`/`isAttached`.
+Additions to the original API include `scrollController`, `estimateExtent`, `estimatedSeparatorExtent`, `initialOffset`, `restorePosition`, `overscrollToTarget`, `notifyPositionsOnRebuild`, `crossAxisLayoutKey` (it receives the width after `padding`), an `offset` for `jumpTo`/`scrollTo`, `ItemScrollController.scrollController`/`listController`/`anchor`, `jumpToAsync`, `restoreAnchor`/`restoreAnchorAsync`, and `ScrollOffsetController.jumpBy`/`isAttached`.
 
 Use `restoreAnchor` rather than translating the anchor into `jumpTo` arguments: for item zero, ordinary `jumpTo(index: 0)` deliberately keeps the leading padding visible, while restoring an anchor preserves exactly how much of that padding had been scrolled away. `restorePosition: true` uses a separate `PageStorage` namespace, so it can coexist with an external `ScrollController` that keeps its pixel offset.
 
@@ -241,6 +241,18 @@ The threshold is arbitrary, but in general there are diminishing returns for pre
 
 The cross-axis width is tracked automatically. For another global change to the estimation model, such as font size or line spacing, pass an `estimationKey` that changes with that model. A newly allocated callback alone does not trigger a full refresh. This keeps ordinary widget rebuilds from rescanning a large list.
 
+When some width changes cannot change item extents, for example because the text column has a maximum width, tell the list with `crossAxisLayoutKey`. It maps the width available to the items to a value that changes whenever their extents may change:
+
+```dart
+SuperSliverList(
+  delegate: /*...*/,
+  extentEstimation: (index, width) => estimateFor(index, math.min(width, 720)),
+  crossAxisLayoutKey: (width) => math.min(width, 720),
+)
+```
+
+When the width changes and the key stays equal (`==`), measured extents and estimates are kept, and only the laid out items are laid out again at the new width. The estimator should depend on the width only through the key. The function runs during layout, so it must be cheap and have no side effects.
+
 When only a few items change, update their estimates together:
 
 ```dart
@@ -275,7 +287,7 @@ Keep stable child keys and supply `findChildIndexCallback` when items can move. 
 
 ### Diagnose layout cost
 
-A full estimate refresh and a rebuild of the offset index are both linear in the number of items. `listController.estimateRefreshStats` reports how often each happened for the attached list and how long the last one took, or null while no list is attached. For a compatibility list, read `itemScrollController.listController?.estimateRefreshStats`.
+A full estimate refresh and a rebuild of the offset index are both linear in the number of items. `listController.estimateRefreshStats` reports how often each happened for the attached list and how long the last one took, or null while no list is attached. `skippedResizeCount` counts the width changes that `crossAxisLayoutKey` let the list skip. For a compatibility list, read `itemScrollController.listController?.estimateRefreshStats`.
 
 ```dart
 final stats = listController.estimateRefreshStats;

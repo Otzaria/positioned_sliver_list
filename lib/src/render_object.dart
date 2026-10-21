@@ -122,6 +122,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     ExtentPrecalculationPolicy? extentPrecalculationPolicy,
     required this.estimateExtent,
     Object? estimationKey,
+    CrossAxisLayoutKey? crossAxisLayoutKey,
     required this.delayPopulatingCacheArea,
     required this.layoutKeptAliveChildren,
     required InitialScrollPosition initialScrollPosition,
@@ -131,6 +132,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     TargetRectResolver? initialTargetRectResolver,
     OverscrollToTarget overscrollToTarget = OverscrollToTarget.none,
   }) : _estimationKey = estimationKey,
+       _crossAxisLayoutKey = crossAxisLayoutKey,
        _overscrollToTarget = overscrollToTarget,
        _initialScrollPosition = initialScrollPosition,
        _didResolveInitialScrollPosition =
@@ -171,6 +173,41 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     _estimationKey = value;
     _extentManager.markAllDirty();
     markNeedsLayout();
+  }
+
+  CrossAxisLayoutKey? _crossAxisLayoutKey;
+
+  // The key for the cross axis extent of the last layout, or [_keyNotComputed].
+  Object? _crossAxisKeyValue = _keyNotComputed;
+  static const _keyNotComputed = Object();
+
+  CrossAxisLayoutKey? get crossAxisLayoutKey => _crossAxisLayoutKey;
+  set crossAxisLayoutKey(CrossAxisLayoutKey? value) {
+    if (identical(value, _crossAxisLayoutKey)) return;
+    _crossAxisLayoutKey = value;
+    final previous = previousConstraints;
+    if (value == null || previous == null) {
+      _crossAxisKeyValue = _keyNotComputed;
+      return;
+    }
+    final key = value(previous.crossAxisExtent);
+    final stored = _crossAxisKeyValue;
+    _crossAxisKeyValue = key;
+    if (!identical(stored, _keyNotComputed) && stored != key) {
+      _extentManager.markAllDirty();
+      markNeedsLayout();
+    }
+  }
+
+  /// Whether a change to [crossAxisExtent] can change item extents.
+  bool _crossAxisKeyChanged(double crossAxisExtent) {
+    final keyFor = _crossAxisLayoutKey;
+    if (keyFor == null) return true;
+    final previous = _crossAxisKeyValue;
+    final key = _crossAxisKeyValue = keyFor(crossAxisExtent);
+    if (identical(previous, _keyNotComputed) || previous != key) return true;
+    _extentManager.recordSkippedResize();
+    return false;
   }
 
   bool delayPopulatingCacheArea;
@@ -1791,8 +1828,13 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
 
     if (previousConstraints != null &&
         previousConstraints!.crossAxisExtent != constraints.crossAxisExtent) {
-      _extentManager.markAllDirty();
       layoutState.crossAxisResizing = true;
+      if (_crossAxisKeyChanged(constraints.crossAxisExtent)) {
+        _extentManager.markAllDirty();
+      }
+    } else if (_crossAxisLayoutKey != null &&
+        identical(_crossAxisKeyValue, _keyNotComputed)) {
+      _crossAxisKeyValue = _crossAxisLayoutKey!(constraints.crossAxisExtent);
     }
     final crossAxisResizing = layoutState.crossAxisResizing;
 

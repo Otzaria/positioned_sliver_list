@@ -65,6 +65,7 @@ class ScrollablePositionedList extends StatefulWidget {
     this.listController,
     this.estimateExtent,
     this.estimationKey,
+    this.crossAxisLayoutKey,
     this.restorePosition = false,
     this.overscrollToTarget = OverscrollToTarget.matchScrollablePositionedList,
   }) : assert(cacheExtentScreens >= 0),
@@ -102,6 +103,7 @@ class ScrollablePositionedList extends StatefulWidget {
     this.listController,
     this.estimateExtent,
     this.estimationKey,
+    this.crossAxisLayoutKey,
     this.restorePosition = false,
     this.overscrollToTarget = OverscrollToTarget.matchScrollablePositionedList,
   }) : assert(cacheExtentScreens >= 0),
@@ -141,6 +143,7 @@ class ScrollablePositionedList extends StatefulWidget {
     this.listController,
     this.estimateExtent,
     this.estimationKey,
+    this.crossAxisLayoutKey,
     this.estimatedSeparatorExtent = 0,
     this.restorePosition = false,
     this.overscrollToTarget = OverscrollToTarget.matchScrollablePositionedList,
@@ -248,8 +251,14 @@ class ScrollablePositionedList extends StatefulWidget {
   final ItemExtentEstimator? estimateExtent;
 
   /// שינוי המפתח מחליף בהערכה חדשה את מידות כל הפריטים, גם את אלה שנמדדו,
-  /// והפריטים הפרוסים נמדדים מחדש. רוחב חדש ורענון מפורש של [ListController] עושים זאת גם בלעדיו.
+  /// והפריטים הפרוסים נמדדים מחדש. רוחב חדש (כש-[crossAxisLayoutKey] משתנה או חסר)
+  /// ורענון מפורש של [ListController] עושים זאת גם בלעדיו.
   final Object? estimationKey;
+
+  /// Maps the item width (after [padding]) to a value that changes whenever
+  /// item heights may change; see [SuperSliverList.crossAxisLayoutKey]. In a
+  /// separated list it applies to the separators as well.
+  final CrossAxisLayoutKey? crossAxisLayoutKey;
 
   /// Estimated extent of a separator in a [ScrollablePositionedList.separated]
   /// list.
@@ -994,6 +1003,7 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
         widget.estimatedSeparatorExtent,
         widget.estimateExtent == null,
       ),
+      crossAxisLayoutKey: widget.crossAxisLayoutKey,
       initialIndex: _childIndex(_initialIndex),
       initialAlignment: _initialAlignment,
       initialOffset: _restoredPosition == null && initialResolver == null

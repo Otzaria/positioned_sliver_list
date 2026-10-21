@@ -337,6 +337,9 @@ class ExtentManager with ChangeNotifier {
 
   EstimateRefreshStats get estimateRefreshStats => _refreshCounters.snapshot();
 
+  /// Records a cross-axis extent change that kept every extent.
+  void recordSkippedResize() => ++_refreshCounters.skippedResizeCount;
+
   int? indexForOffset(double offset) {
     return _extentList.indexForOffset(offset);
   }

@@ -10,6 +10,7 @@ export "src/stick_target.dart" show StickTarget;
 export "src/super_sliver_list.dart"
     show
         AnimationHandle,
+        CrossAxisLayoutKey,
         ListController,
         OverscrollToTarget,
         SuperSliverList,
