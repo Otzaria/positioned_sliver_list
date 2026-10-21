@@ -1707,6 +1707,18 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     return false;
   }
 
+  void _invalidateItemLayout(RenderBox item) {
+    // Fixed-size boundaries can otherwise lay out after the target is measured.
+    invokeLayoutCallback<SliverConstraints>((_) {
+      void invalidate(RenderObject object) {
+        object.visitChildren(invalidate);
+        object.markNeedsLayout();
+      }
+
+      invalidate(item);
+    });
+  }
+
   void _performLayoutInner() {
     if (_childScrollOffsetEstimation?.owner != _extentManager.revealOwner) {
       _childScrollOffsetEstimation = null;
@@ -1807,18 +1819,11 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     }
     final pendingTarget = _pendingTarget;
     final pendingIndex = pendingTarget?.index.clamp(0, totalChildCount - 1);
+    if (headerItem != null) _invalidateItemLayout(headerItem);
     if (pendingTarget?.targetRectResolver != null) {
       final targetChild = _liveChildForIndex(pendingIndex!);
       if (targetChild != null) {
-        // Fixed-size boundaries can otherwise lay out after the target is measured.
-        invokeLayoutCallback<SliverConstraints>((_) {
-          void invalidate(RenderObject object) {
-            object.visitChildren(invalidate);
-            object.markNeedsLayout();
-          }
-
-          invalidate(targetChild);
-        });
+        _invalidateItemLayout(targetChild);
       }
     }
     // Move to the target's estimated position first, so that only the items
@@ -1932,6 +1937,32 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     // items before it grew a lot.
     double? anchorNewLayoutOffset;
     double? anchorNewExtent;
+
+    if (headerItem != null && _parentDataOf(headerItem).layoutOffset == null) {
+      // Keyed moves clear offsets. Correct from the retained header before
+      // filling gaps, which may contain an arbitrarily large inserted group.
+      var prefixCount = 0;
+      for (
+        var child = firstChild;
+        child != null && !identical(child, headerItem);
+        child = childAfter(child)
+      ) {
+        ++prefixCount;
+      }
+      collectGarbage(prefixCount, 0);
+      layoutState.didRemoveChildren |= prefixCount > 0;
+      _parentDataOf(headerItem).layoutOffset = _extentManager.offsetForIndex(
+        _indexOf(headerItem),
+      );
+      layoutChild(headerItem, childConstraints);
+      final correction = _headerCorrection() ?? 0;
+      if (correction.abs() > precisionErrorTolerance) {
+        ++layoutPass.correctionCount;
+        geometry = SliverGeometry(scrollOffsetCorrection: correction);
+        childManager.didFinishLayout();
+        return;
+      }
+    }
 
     RenderBox? previousChild;
     int index = firstChild != null ? _indexOf(firstChild!) : 0;
