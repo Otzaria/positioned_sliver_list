@@ -196,7 +196,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     final key = value(previous.crossAxisExtent);
     final stored = _crossAxisKeyValue;
     _crossAxisKeyValue = key;
-    if (!identical(stored, _keyNotComputed) && stored != key) {
+    if (!identical(stored, _keyNotComputed) && !_sameKey(stored, key)) {
       _extentManager.markAllDirty();
       markNeedsLayout();
     }
@@ -214,13 +214,18 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       _extentManager.hasPendingExplicitEstimates ||
       _extentManager.hasPendingFullRefresh;
 
+  // identical also matches a NaN key, which is never == to itself.
+  static bool _sameKey(Object? a, Object? b) => identical(a, b) || a == b;
+
   /// Whether a change to [crossAxisExtent] can change item extents.
   bool _crossAxisKeyChanged(double crossAxisExtent) {
     final keyFor = _crossAxisLayoutKey;
     if (keyFor == null) return true;
     final previous = _crossAxisKeyValue;
     final key = _crossAxisKeyValue = keyFor(crossAxisExtent);
-    if (identical(previous, _keyNotComputed) || previous != key) return true;
+    if (identical(previous, _keyNotComputed) || !_sameKey(previous, key)) {
+      return true;
+    }
     _extentManager.recordSkippedResize();
     return false;
   }

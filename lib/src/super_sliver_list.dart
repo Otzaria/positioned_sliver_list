@@ -801,7 +801,9 @@ typedef ExtentEstimationProvider =
 /// whenever their main axis extents may change, for example
 /// `(width) => math.min(width, maxColumnWidth)`.
 ///
-/// Called during layout, so it must be cheap and free of side effects.
+/// Called during layout, so it must be cheap and free of side effects. Return a
+/// value with value equality, such as a number or a record: a new list or
+/// object for the same extent refreshes all estimates on every rebuild.
 typedef CrossAxisLayoutKey = Object? Function(double crossAxisExtent);
 
 abstract class ExtentPrecalculationPolicyDelegate {

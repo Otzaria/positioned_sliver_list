@@ -18,8 +18,8 @@
 * Replace a non-finite or negative estimate with the default extent of 100
   (0 for the uniform query) so the total extent stays finite, for example when
   an estimator divides by a zero width. Debug builds report the first one.
-* Schedule one delayed precalculation layout per list and frame, however many
-  times the list is laid out in that frame.
+* Schedule one delayed layout per list and frame, however many times the list
+  is laid out in that frame.
 * Compatibility API: rebuilds of `ScrollablePositionedList` in the same frame
   notify `itemPositionsListener` once.
 * Add `notifyPositionsOnRebuild` (default `true`). When false, a rebuild that
@@ -30,7 +30,8 @@
   `ScrollablePositionedList`. A width change for which the key stays equal
   keeps measured extents and estimates and calls the estimator for no item;
   without a key every width change still refreshes all estimates.
-  `EstimateRefreshStats.skippedResizeCount` counts the skipped changes.
+  `EstimateRefreshStats.skippedResizeCount` counts the skipped changes. Keys
+  are compared with `identical` or `==`, so return a value with value equality.
 * A list of at least 4096 items defers the estimate refresh while its width
   changes in consecutive frames (`SuperSliverListPerfFlags.deferCrossAxisEstimateRefresh`).
   The estimator is no longer called for every item in every frame of the

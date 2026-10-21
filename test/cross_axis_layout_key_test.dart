@@ -129,6 +129,17 @@ void main() {
     expect(h.list.extentForIndex(5), (50.0, false));
   });
 
+  testWidgets("a NaN key in a new closure does not refresh", (tester) async {
+    await tester.pumpWidget(h.build(key: (_) => double.nan));
+    await h.measureAndLeave(tester);
+    final calls = h.estimateCalls;
+
+    await tester.pumpWidget(h.build(key: (_) => double.nan));
+    await tester.pumpWidget(h.build(key: (_) => double.nan));
+    expect(h.estimateCalls, calls);
+    expect(h.stats.refreshCount, 0);
+  });
+
   testWidgets("setting a key or removing it does not refresh by itself", (
     tester,
   ) async {

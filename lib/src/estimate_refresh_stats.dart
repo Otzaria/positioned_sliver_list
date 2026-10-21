@@ -7,6 +7,7 @@ import "package:flutter/foundation.dart";
 /// the lifetime of the list and survive attaching its controller again.
 @immutable
 class EstimateRefreshStats {
+  /// Creates a snapshot; every count and duration defaults to zero.
   const EstimateRefreshStats({
     this.refreshCount = 0,
     this.lastRefreshItemCount = 0,
