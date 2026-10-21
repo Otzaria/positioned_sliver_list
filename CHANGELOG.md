@@ -1,3 +1,12 @@
+## 0.2.2
+
+* Recover header anchors after keyed collapse or expansion changes child indices,
+  preserving their first-frame position and neighboring keyed state.
+* Correct from the retained header before filling newly inserted index gaps,
+  keeping large group expansion virtualized.
+* Refresh anchored descendant geometry inside fixed-height layout boundaries,
+  using the same layout callback protocol as exact navigation targets.
+
 ## 0.2.1
 
 * Run target rectangle resolvers through Flutter's layout callback protocol so

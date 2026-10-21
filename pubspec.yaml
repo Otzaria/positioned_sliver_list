@@ -1,6 +1,6 @@
 name: positioned_sliver_list
 description: "A virtualized sliver list with variable heights, exact index navigation, scroll anchoring, pixel scrolling and a scrollable_positioned_list compatible API."
-version: 0.2.1
+version: 0.2.2
 homepage: https://github.com/Otzaria/positioned_sliver_list
 repository: https://github.com/Otzaria/positioned_sliver_list
 issue_tracker: https://github.com/Otzaria/positioned_sliver_list/issues
