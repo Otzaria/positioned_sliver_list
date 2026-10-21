@@ -9,6 +9,8 @@
   never shrinks it below the initial 16 slots.
 * `indexForScrollOffset` and layout no longer map an offset just below the total
   extent to an index past the last item when floating-point sums disagree.
+* Schedule one delayed precalculation layout per list and frame, however many
+  times the list is laid out in that frame.
 
 ## 0.2.2
 

@@ -1116,8 +1116,17 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     return correction;
   }
 
+  // Set while a delayed layout callback is pending; layout can run several
+  // times per frame and one callback, with the latest pass, is enough.
+  LayoutPass? _delayedLayoutPass;
+
   void _markNeedsLayoutDelayed(LayoutPass pass) {
+    final isScheduled = _delayedLayoutPass != null;
+    _delayedLayoutPass = pass;
+    if (isScheduled) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final pass = _delayedLayoutPass!;
+      _delayedLayoutPass = null;
       final thisIndex = pass.sliversDuringLayout.indexOf(this);
       // When scheduling layout pass, make sure that all slivers laid out after this
       // also get their layout invalidated. This is necessary because this sliver layout
