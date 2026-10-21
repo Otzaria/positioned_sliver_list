@@ -98,6 +98,14 @@ abstract final class SuperSliverListPerfFlags {
   /// chat: one O(n) clean-range re-walk per appended message avoided).
   static bool preserveCleanRangeOnStructuralChange = true;
 
+  /// Win 16: Every frame of a continuous cross axis extent change (such as an
+  /// animated side panel) refreshed the estimates of all items and rebuilt
+  /// the offset index. When enabled, a list of at least 4096 items keeps the
+  /// previous values, marked as estimated, while the extent keeps changing,
+  /// and re-estimates only the items not measured at the final extent in the
+  /// first layout after it stopped changing.
+  static bool deferCrossAxisEstimateRefresh = true;
+
   /// Win 18: Every full rebuild of the Fenwick tree (after an estimate
   /// refresh, a middle insertion or removal, or a large append) allocated a
   /// new `Float64List(n + 1)`. When enabled, the previous tree's backing store

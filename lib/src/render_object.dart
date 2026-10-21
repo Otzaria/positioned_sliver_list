@@ -22,6 +22,9 @@ final _log = Logger("SuperSliverList");
 /// Pixels within which a pending item target counts as reached.
 const _kTargetTolerance = 1e-3;
 
+/// Smaller lists refresh their estimates in the frame of every width change.
+const _kMinItemsForDeferredRefresh = 4096;
+
 /// Item extent assumed when no estimator is given or an estimate is invalid.
 const kDefaultEstimatedItemExtent = 100.0;
 
@@ -199,6 +202,18 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     }
   }
 
+  /// Whether a relevant cross axis extent change must refresh all estimates
+  /// in this layout instead of when the extent stops changing.
+  bool _mustRefreshNow(LayoutPass pass) =>
+      !SuperSliverListPerfFlags.deferCrossAxisEstimateRefresh ||
+      _extentManager.numberOfItems < _kMinItemsForDeferredRefresh ||
+      _pendingTarget != null ||
+      _childScrollOffsetEstimation != null ||
+      pass.childScrollOffsetEstimation ||
+      !_didResolveInitialScrollPosition ||
+      _extentManager.hasPendingExplicitEstimates ||
+      _extentManager.hasPendingFullRefresh;
+
   /// Whether a change to [crossAxisExtent] can change item extents.
   bool _crossAxisKeyChanged(double crossAxisExtent) {
     final keyFor = _crossAxisLayoutKey;
@@ -278,6 +293,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     for (final sliver in pass.slivers) {
       if (sliver.firstChild != null &&
           sliver._extentManager.hasDirtyItems &&
+          !sliver._extentManager.hasDeferredRefresh &&
           sliver._shouldPrecalculateExtents(pass)) {
         return true;
       }
@@ -1826,15 +1842,30 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     layoutState.extentRevision ??= _extentManager.extentRevision;
     _extentManager.resize(totalChildCount);
 
-    if (previousConstraints != null &&
-        previousConstraints!.crossAxisExtent != constraints.crossAxisExtent) {
+    final crossAxisChanged =
+        previousConstraints != null &&
+        previousConstraints!.crossAxisExtent != constraints.crossAxisExtent;
+    var relevantResize = false;
+    if (crossAxisChanged) {
       layoutState.crossAxisResizing = true;
-      if (_crossAxisKeyChanged(constraints.crossAxisExtent)) {
-        _extentManager.markAllDirty();
-      }
+      relevantResize = _crossAxisKeyChanged(constraints.crossAxisExtent);
     } else if (_crossAxisLayoutKey != null &&
         identical(_crossAxisKeyValue, _keyNotComputed)) {
       _crossAxisKeyValue = _crossAxisLayoutKey!(constraints.crossAxisExtent);
+    }
+    if (relevantResize) {
+      layoutState.layoutRelevantResize = true;
+      if (_mustRefreshNow(layoutPass)) {
+        _extentManager.markAllDirty();
+      } else {
+        _extentManager.deferCrossAxisRefresh();
+        // The refresh must run during layout, which keeps the anchor in place.
+        _markNeedsLayoutDelayed(layoutPass);
+      }
+    } else if (_extentManager.hasDeferredRefresh &&
+        !layoutState.layoutRelevantResize &&
+        constraints.crossAxisExtent > 0) {
+      _extentManager.settleDeferredRefresh();
     }
     final crossAxisResizing = layoutState.crossAxisResizing;
 
@@ -2152,6 +2183,7 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
             ? (Stopwatch()..start())
             : null;
         if (_extentManager.hasDirtyItems &&
+            !_extentManager.hasDeferredRefresh &&
             _shouldPrecalculateExtents(layoutPass)) {
           if (_shouldSkipExtentPrecalculationForInvisibleList(layoutPass)) {
             _log.finer(
@@ -2739,7 +2771,9 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       layoutPass: layoutPass,
       allowScrollOffsetCorrection: layoutPass.correctionCount < 3,
       precalculateExtents:
-          !hasHeaderAnchor && _shouldPrecalculateExtents(layoutPass),
+          !hasHeaderAnchor &&
+          !_extentManager.hasDeferredRefresh &&
+          _shouldPrecalculateExtents(layoutPass),
     );
     final keptAliveCorrection = _layoutKeptAliveChildren();
     if (keptAliveCorrection != 0) {

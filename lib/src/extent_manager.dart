@@ -193,6 +193,40 @@ class ExtentManager with ChangeNotifier {
   }
 
   bool _refreshAllEstimates = false;
+
+  // A cross axis extent change whose refresh waits until the extent settles;
+  // meanwhile every extent keeps its previous value, marked as estimated.
+  bool _refreshDeferred = false;
+  bool _refreshEstimatedOnly = false;
+
+  /// Marks every extent estimated and postpones re-estimating them until
+  /// [settleDeferredRefresh].
+  void deferCrossAxisRefresh() {
+    assert(isLocked);
+    if (!kReleaseMode) {
+      FlutterTimeline.instantSync(
+        "PositionedSliverList.deferWidthRefresh",
+        arguments: {"items": numberOfItems},
+      );
+    }
+    _extentList.markAllDirty();
+    _refreshDeferred = true;
+    _isModified = true;
+    ++_refreshCounters.deferredResizeCount;
+  }
+
+  bool get hasDeferredRefresh => _refreshDeferred;
+
+  bool get hasPendingFullRefresh => _refreshAllEstimates;
+
+  bool get hasPendingExplicitEstimates => _pendingEstimates.isNotEmpty;
+
+  /// Re-estimates the items still marked estimated in the next
+  /// [applyPendingEstimateUpdates].
+  void settleDeferredRefresh() {
+    if (_refreshDeferred) _refreshEstimatedOnly = true;
+  }
+
   final _invalidatedEstimates = <int>{};
   final _pendingEstimates = <int, double>{};
   final _pendingEstimateCompleters = <Completer<void>>[];
@@ -203,6 +237,7 @@ class ExtentManager with ChangeNotifier {
 
   bool get hasPendingEstimateUpdates =>
       _refreshAllEstimates ||
+      _refreshEstimatedOnly ||
       _invalidatedEstimates.isNotEmpty ||
       _pendingEstimates.isNotEmpty;
 
@@ -244,7 +279,11 @@ class ExtentManager with ChangeNotifier {
       FlutterTimeline.startSync(
         "PositionedSliverList.applyPendingEstimateUpdates",
         arguments: {
-          "refresh": _refreshAllEstimates ? "all" : "none",
+          "refresh": _refreshAllEstimates
+              ? "all"
+              : _refreshEstimatedOnly
+              ? "estimated"
+              : "none",
           "invalidated": _invalidatedEstimates.length,
           "pending": _pendingEstimates.length,
         },
@@ -260,8 +299,14 @@ class ExtentManager with ChangeNotifier {
   void _applyPendingEstimateUpdates() {
     if (_refreshAllEstimates) {
       _extentList.refreshEstimates(delegate.estimateExtentForItem);
-      _refreshAllEstimates = false;
+    } else if (_refreshEstimatedOnly) {
+      _extentList.refreshDirtyEstimates(delegate.estimateExtentForItem);
     }
+    if (_refreshAllEstimates || _refreshEstimatedOnly) {
+      _refreshDeferred = false;
+    }
+    _refreshAllEstimates = false;
+    _refreshEstimatedOnly = false;
     for (final index in _invalidatedEstimates) {
       if (index < numberOfItems) {
         _extentList.setExtent(

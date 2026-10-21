@@ -58,7 +58,7 @@ class ResizeResult {
 /// Refresh statistics of the last run, per implementation name.
 final lastStats = <String, EstimateRefreshStats>{};
 
-/// Milliseconds spent in the animated frames, per implementation name.
+/// Milliseconds spent in the animated and settle frames, per implementation.
 final resizeFrameTimes = <String, List<double>>{};
 
 String describeTimes(String name) {
@@ -68,7 +68,7 @@ String describeTimes(String name) {
   final median = times.length.isOdd
       ? times[times.length ~/ 2]
       : (times[times.length ~/ 2 - 1] + times[times.length ~/ 2]) / 2;
-  return "$name: animation frames median ${median.toStringAsFixed(1)} ms, "
+  return "$name: resize frames median ${median.toStringAsFixed(1)} ms, "
       "mean ${mean.toStringAsFixed(1)} ms over ${times.length} runs; "
       "${lastStats[name]}";
 }
@@ -151,10 +151,10 @@ Future<ResizeResult> runResizeScenario(
       setWidth(() => width = from + (to - from) * frame / frames);
       await tester.pump(const Duration(milliseconds: 16));
     }
-    stopwatch.stop();
     for (var frame = 0; frame < settleFrames; frame++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
+    stopwatch.stop();
     (resizeFrameTimes[name] ??= []).add(stopwatch.elapsedMicroseconds / 1000);
     lastStats[name] = list.estimateRefreshStats!;
     final anchor = list.anchor!;

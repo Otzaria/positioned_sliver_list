@@ -18,7 +18,7 @@ The fixes from the Telosnex and ahey forks of `super_sliver_list` are included.
 
 #### Fast scrolling with large amount of items with variable extents
 
-`SuperSliverList` keeps cumulative item extents in a Fenwick tree, so looking up an offset or updating a measured extent takes logarithmic time. Widgets are built for the viewport and its cache area; a distant index jump does not need to build the items between the current position and its target. Extent metadata still uses memory proportional to the item count, and creating or refreshing per-item estimates takes linear time.
+`SuperSliverList` keeps cumulative item extents in a Fenwick tree, so looking up an offset or updating a measured extent takes logarithmic time. Widgets are built for the viewport and its cache area; a distant index jump does not need to build the items between the current position and its target. Extent metadata still uses memory proportional to the item count, and creating or refreshing per-item estimates takes linear time. While the width keeps changing, as in an animated side panel, a large list pays for that refresh once, after the width settles.
 
 #### Ability to jump or animate to specific item
 
@@ -253,6 +253,8 @@ SuperSliverList(
 
 When the width changes and the key stays equal (`==`), measured extents and estimates are kept, and only the laid out items are laid out again at the new width. The estimator should depend on the width only through the key. The function runs during layout, so it must be cheap and have no side effects.
 
+A list of 4096 items or more defers the refresh while the width keeps changing from frame to frame. Meanwhile the laid out items are measured at each new width and keep the visible anchor in place, and all other items keep their previous extents, marked as estimated: `extentForIndex` reports them with `isEstimated` true, and the scrollbar range may be off until the width settles. In the first layout without a width change, only the items not measured at the final width are estimated again, and the anchor stays in place. A jump, an `estimationKey` change, `invalidateAllExtents` or `updateEstimatedExtents` during the change refreshes immediately, as do smaller lists. Set `SuperSliverListPerfFlags.deferCrossAxisEstimateRefresh` to `false` to refresh in every frame.
+
 When only a few items change, update their estimates together:
 
 ```dart
@@ -261,7 +263,7 @@ await listController.updateEstimatedExtents({12: 160, 13: 240, 8000: 95});
 
 The update is applied during layout, keeps the visible anchor in place, and completes after the resulting layout. Measured visible items use their actual extents. Invalid indices or non-finite/negative extents are rejected before any update is queued; writes during layout are rejected. Use `ItemScrollController.updateEstimatedExtents` for a compatibility list so separated-list indices remain logical item indices.
 
-`invalidateExtent` and `invalidateAllExtents` recalculate numerical estimates as well as marking measurements dirty. A full refresh is linear in the number of items; prefer a batch for local data changes.
+`invalidateExtent` and `invalidateAllExtents` recalculate numerical estimates as well as marking measurements dirty. A full refresh calls the estimator once per item, so its cost grows linearly with the number of items; prefer a batch for local data changes.
 
 ### Navigate inside an item
 
@@ -287,7 +289,7 @@ Keep stable child keys and supply `findChildIndexCallback` when items can move. 
 
 ### Diagnose layout cost
 
-A full estimate refresh and a rebuild of the offset index are both linear in the number of items. `listController.estimateRefreshStats` reports how often each happened for the attached list and how long the last one took, or null while no list is attached. `skippedResizeCount` counts the width changes that `crossAxisLayoutKey` let the list skip. For a compatibility list, read `itemScrollController.listController?.estimateRefreshStats`.
+A full estimate refresh and a rebuild of the offset index are both linear in the number of items. `listController.estimateRefreshStats` reports how often each happened for the attached list and how long the last one took, or null while no list is attached. `deferredResizeCount` counts the layouts that deferred a width refresh, and `skippedResizeCount` the width changes that `crossAxisLayoutKey` let the list skip. For a compatibility list, read `itemScrollController.listController?.estimateRefreshStats`.
 
 ```dart
 final stats = listController.estimateRefreshStats;
@@ -298,7 +300,7 @@ if (stats != null) {
 }
 ```
 
-In debug and profile builds the same work appears in the DevTools timeline as `PositionedSliverList.applyPendingEstimateUpdates`, `PositionedSliverList.refreshEstimates` and `PositionedSliverList.rebuildOffsetIndex`, with the item counts as arguments.
+In debug and profile builds the same work appears in the DevTools timeline as `PositionedSliverList.applyPendingEstimateUpdates`, `PositionedSliverList.refreshEstimates` and `PositionedSliverList.rebuildOffsetIndex`, with the item counts as arguments. A deferred width refresh appears as the instant event `PositionedSliverList.deferWidthRefresh`, and its settle as `applyPendingEstimateUpdates` with `refresh: estimated`.
 
 ## Example
 

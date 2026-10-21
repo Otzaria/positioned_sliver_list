@@ -10,6 +10,7 @@ class SliverLayoutState {
   bool didRemoveChildren = false;
   bool didSetPreviousConstraint = false;
   bool crossAxisResizing = false;
+  bool layoutRelevantResize = false;
   int? extentRevision;
   bool? precalculateExtents;
 }

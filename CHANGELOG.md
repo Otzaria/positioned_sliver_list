@@ -25,6 +25,17 @@
   keeps measured extents and estimates and calls the estimator for no item;
   without a key every width change still refreshes all estimates.
   `EstimateRefreshStats.skippedResizeCount` counts the skipped changes.
+* A list of at least 4096 items defers the estimate refresh while its width
+  changes in consecutive frames (`SuperSliverListPerfFlags.deferCrossAxisEstimateRefresh`).
+  The estimator is no longer called for every item in every frame of the
+  change: it is called once, in the first layout after the width settles, and
+  only for the items not measured at the final width. Until then items outside
+  the laid out range keep their previous extents, marked as estimated. Jumps,
+  `estimationKey`, `invalidateAllExtents` and `updateEstimatedExtents` still
+  refresh immediately, and no refresh runs at zero width.
+  `EstimateRefreshStats.deferredResizeCount` and the timeline event
+  `PositionedSliverList.deferWidthRefresh` report it. Extent precalculation
+  pauses during the change.
 
 ## 0.2.2
 

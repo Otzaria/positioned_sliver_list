@@ -62,6 +62,14 @@ class _Harness {
   }
 }
 
+void _refreshInEveryFrame() {
+  final saved = SuperSliverListPerfFlags.deferCrossAxisEstimateRefresh;
+  SuperSliverListPerfFlags.deferCrossAxisEstimateRefresh = false;
+  addTearDown(
+    () => SuperSliverListPerfFlags.deferCrossAxisEstimateRefresh = saved,
+  );
+}
+
 void main() {
   late _Harness h;
   setUp(() => h = _Harness());
@@ -70,6 +78,7 @@ void main() {
   testWidgets(
     "width refreshes distant estimates and preserves anchor fraction",
     (tester) async {
+      _refreshInEveryFrame();
       await tester.pumpWidget(h.build());
       await h.place(tester);
       final callsBeforeResize = h.estimateCalls;
@@ -85,6 +94,35 @@ void main() {
       );
     },
   );
+
+  testWidgets("width change defers distant estimates until the width settles", (
+    tester,
+  ) async {
+    await tester.pumpWidget(h.build());
+    await h.place(tester);
+    final callsBeforeResize = h.estimateCalls;
+    await tester.pumpWidget(h.build(width: 200, height: 200));
+    expect(h.estimateCalls, callsBeforeResize);
+    expect(h.list.extentForIndex(8000), (100.0, true));
+    expect(h.list.anchor!.index, 1000);
+    expect(h.list.anchor!.offsetInItem, closeTo(75, 0.01));
+    final estimated = h.list.numberOfItemsWithEstimatedExtent;
+    expect(estimated, lessThan(10000));
+
+    await tester.pump();
+    expect(h.estimateCalls - callsBeforeResize, 1 + estimated);
+    expect(h.list.extentForIndex(8000), (200.0, true));
+    expect(h.list.anchor!.index, 1000);
+    expect(h.list.anchor!.offsetInItem, closeTo(75, 0.01));
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey(1000))).dy,
+      closeTo(-75, 0.01),
+    );
+    final stats = h.list.estimateRefreshStats!;
+    expect(stats.deferredResizeCount, 1);
+    expect(stats.refreshCount, 1);
+    expect(stats.lastRefreshItemCount, estimated);
+  });
 
   testWidgets(
     "estimation key refreshes while callback identity alone does not",

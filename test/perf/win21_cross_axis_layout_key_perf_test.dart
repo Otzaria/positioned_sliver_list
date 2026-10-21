@@ -3,8 +3,9 @@
 //
 // Items are wrapped text in a column at most 800 pixels wide, and the
 // estimator depends on the width only through that column. Without a key,
-// every frame of a width animation from 1000 to 900 pixels refreshes all
-// 190,760 estimates and rebuilds the offset index. With
+// a width change from 1000 to 900 pixels refreshes all 190,760 estimates and
+// rebuilds the offset index: in every frame, or once after a 20 frame
+// animation settles with Win 16, and once for a change in a single frame. With
 // `crossAxisLayoutKey: (w) => min(w, 800)` the key never changes, so measured
 // extents and estimates are kept and only the live items are laid out again.
 //
@@ -28,30 +29,33 @@ const _column = 800.0;
 
 void main() {
   testWidgets("Win 21: no key vs crossAxisLayoutKey", (tester) async {
-    Future<ResizeResult> scenario(String name, {required bool key}) =>
-        runResizeScenario(
-          tester,
-          name: name,
-          from: 1000,
-          to: 900,
-          frames: 20,
-          maxColumnWidth: _column,
-          crossAxisLayoutKey: key ? (w) => math.min(w, _column) : null,
-        );
+    Future<ResizeResult> scenario(
+      String name,
+      int frames, {
+      required bool key,
+    }) => runResizeScenario(
+      tester,
+      name: "$name/$frames",
+      from: 1000,
+      to: 900,
+      frames: frames,
+      maxColumnWidth: _column,
+      crossAxisLayoutKey: key ? (w) => math.min(w, _column) : null,
+    );
 
     final perf = PerfTester<int, ResizeResult>(
       testName: "Win 21: crossAxisLayoutKey (190,760 items)",
-      testCases: const [0],
-      implementation1: (_) => scenario("no-key", key: false),
-      implementation2: (_) => scenario("key", key: true),
+      testCases: const [20, 1],
+      implementation1: (frames) => scenario("no-key", frames, key: false),
+      implementation2: (frames) => scenario("key", frames, key: true),
       impl1Name: "no-key",
       impl2Name: "key",
       equalityCheck: (a, b) => a!.matches(b!, compareExtent: false),
     );
     await perf.run(warmupRuns: 2, benchmarkRuns: 8);
-    // ignore: avoid_print
-    print(describeTimes("no-key"));
-    // ignore: avoid_print
-    print(describeTimes("key"));
+    for (final name in ["no-key/20", "key/20", "no-key/1", "key/1"]) {
+      // ignore: avoid_print
+      print(describeTimes(name));
+    }
   }, timeout: const Timeout(Duration(minutes: 20)));
 }

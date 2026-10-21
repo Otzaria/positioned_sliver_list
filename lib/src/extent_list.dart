@@ -287,6 +287,37 @@ class ExtentList {
     counters.recordRefresh(length, start);
   }
 
+  /// Re-estimates only the items marked dirty; measured extents are kept.
+  void refreshDirtyEstimates(double Function(int? index) estimate) {
+    final start = EstimateRefreshCounters.nowMicros;
+    final uniform = estimate(null);
+    final count = _dirtyCount;
+    if (!kReleaseMode) {
+      FlutterTimeline.startSync(
+        "PositionedSliverList.refreshEstimates",
+        arguments: {
+          "items": length,
+          "estimated": count,
+          "uniform": uniform > 0,
+        },
+      );
+    }
+    try {
+      var total = 0.0;
+      for (var index = 0; index < length; index++) {
+        if (_dirty[index]) {
+          _extents[index] = uniform > 0 ? uniform : estimate(index);
+        }
+        total += _extents[index];
+      }
+      _totalExtent = total;
+      _invalidateFenwickTree();
+    } finally {
+      if (!kReleaseMode) FlutterTimeline.finishSync();
+    }
+    counters.recordRefresh(count, start);
+  }
+
   void markDirty(int index) {
     assert(_extents.length == _dirty.length);
     assert(index >= 0 && index < _extents.length);

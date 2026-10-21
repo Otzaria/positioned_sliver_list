@@ -11,21 +11,27 @@ class EstimateRefreshStats {
     this.refreshCount = 0,
     this.lastRefreshItemCount = 0,
     this.lastRefreshDuration = Duration.zero,
+    this.deferredResizeCount = 0,
     this.skippedResizeCount = 0,
     this.indexRebuildCount = 0,
     this.lastIndexRebuildDuration = Duration.zero,
   });
 
-  /// Number of passes that replaced every item extent with a new estimate,
-  /// caused by a cross-axis extent change, an `estimationKey` change or
-  /// `invalidateAllExtents`.
+  /// Number of passes over all items that replaced extents with new
+  /// estimates: full refreshes, caused by a cross-axis extent change, an
+  /// `estimationKey` change or `invalidateAllExtents`, and the refresh after
+  /// a deferred cross-axis extent change settled.
   final int refreshCount;
 
-  /// Number of items filled by the most recent refresh.
+  /// Number of items estimated by the most recent refresh.
   final int lastRefreshItemCount;
 
   /// Duration of the most recent refresh, excluding the offset index rebuild.
   final Duration lastRefreshDuration;
+
+  /// Number of layouts that deferred the refresh after a cross-axis extent
+  /// change until the extent stops changing.
+  final int deferredResizeCount;
 
   /// Number of cross-axis extent changes that kept every extent because the
   /// list's `crossAxisLayoutKey` returned an equal value for the new extent.
@@ -44,6 +50,7 @@ class EstimateRefreshStats {
       other.refreshCount == refreshCount &&
       other.lastRefreshItemCount == lastRefreshItemCount &&
       other.lastRefreshDuration == lastRefreshDuration &&
+      other.deferredResizeCount == deferredResizeCount &&
       other.skippedResizeCount == skippedResizeCount &&
       other.indexRebuildCount == indexRebuildCount &&
       other.lastIndexRebuildDuration == lastIndexRebuildDuration;
@@ -53,6 +60,7 @@ class EstimateRefreshStats {
     refreshCount,
     lastRefreshItemCount,
     lastRefreshDuration,
+    deferredResizeCount,
     skippedResizeCount,
     indexRebuildCount,
     lastIndexRebuildDuration,
@@ -63,6 +71,7 @@ class EstimateRefreshStats {
       "EstimateRefreshStats(refreshCount: $refreshCount, "
       "lastRefreshItemCount: $lastRefreshItemCount, "
       "lastRefreshDuration: $lastRefreshDuration, "
+      "deferredResizeCount: $deferredResizeCount, "
       "skippedResizeCount: $skippedResizeCount, "
       "indexRebuildCount: $indexRebuildCount, "
       "lastIndexRebuildDuration: $lastIndexRebuildDuration)";
@@ -78,6 +87,7 @@ class EstimateRefreshCounters {
   int refreshCount = 0;
   int lastRefreshItemCount = 0;
   int lastRefreshMicros = 0;
+  int deferredResizeCount = 0;
   int skippedResizeCount = 0;
   int indexRebuildCount = 0;
   int lastIndexRebuildMicros = 0;
@@ -97,6 +107,7 @@ class EstimateRefreshCounters {
     refreshCount: refreshCount,
     lastRefreshItemCount: lastRefreshItemCount,
     lastRefreshDuration: Duration(microseconds: lastRefreshMicros),
+    deferredResizeCount: deferredResizeCount,
     skippedResizeCount: skippedResizeCount,
     indexRebuildCount: indexRebuildCount,
     lastIndexRebuildDuration: Duration(microseconds: lastIndexRebuildMicros),
