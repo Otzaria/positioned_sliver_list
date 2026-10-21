@@ -22,6 +22,9 @@ final _log = Logger("SuperSliverList");
 /// Pixels within which a pending item target counts as reached.
 const _kTargetTolerance = 1e-3;
 
+/// Item extent assumed when no estimator is given or an estimate is invalid.
+const kDefaultEstimatedItemExtent = 100.0;
+
 /// Where a target lands when blank space may be added around the content.
 class _OverscrollSolution {
   const _OverscrollSolution(this.pixels, this.leading, this.trailing);
@@ -1488,8 +1491,30 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
   }
 
   double estimateExtentForItem(int? index) {
-    return estimateExtent(index, constraints.crossAxisExtent);
+    final crossAxisExtent = constraints.crossAxisExtent;
+    final extent = estimateExtent(index, crossAxisExtent);
+    if (extent.isFinite && extent >= 0) return extent;
+    assert(() {
+      if (_debugReportedInvalidEstimate) return true;
+      _debugReportedInvalidEstimate = true;
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: ArgumentError.value(
+            extent,
+            "extent",
+            "Estimated extent for index $index at cross axis extent "
+                "$crossAxisExtent must be finite and nonnegative",
+          ),
+          library: "positioned_sliver_list",
+        ),
+      );
+      return true;
+    }());
+    // Zero for the uniform query makes the list ask for each item instead.
+    return index == null ? 0 : kDefaultEstimatedItemExtent;
   }
+
+  bool _debugReportedInvalidEstimate = false;
 
   int? indexForScrollOffset(double pixels) {
     if (!attached ||

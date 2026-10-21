@@ -1170,5 +1170,5 @@ class _TimeSuperSliverListLayoutBudget extends SuperSliverListLayoutBudget {
 }
 
 double _defaultEstimateExtent(int? index, double crossAxisExtent) {
-  return 100.0;
+  return kDefaultEstimatedItemExtent;
 }

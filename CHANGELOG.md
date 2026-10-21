@@ -9,6 +9,9 @@
   never shrinks it below the initial 16 slots.
 * `indexForScrollOffset` and layout no longer map an offset just below the total
   extent to an index past the last item when floating-point sums disagree.
+* Replace a non-finite or negative estimate with the default extent of 100
+  (0 for the uniform query) so the total extent stays finite, for example when
+  an estimator divides by a zero width. Debug builds report the first one.
 * Schedule one delayed precalculation layout per list and frame, however many
   times the list is laid out in that frame.
 
