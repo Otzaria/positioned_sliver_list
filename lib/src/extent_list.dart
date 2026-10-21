@@ -522,7 +522,9 @@ class ExtentList {
       return null;
     }
     final tree = _getOrBuildFenwickTree();
-    return tree.inverseQuery(offset);
+    // The running total and the tree sum in different orders, so an offset
+    // below the total can still be past the tree's last item.
+    return math.min(tree.inverseQuery(offset), length - 1);
   }
 
   /// Returns number of estimated extents.

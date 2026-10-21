@@ -7,6 +7,8 @@
   required size on a large first resize instead of the next power of two
   (`SuperSliverListPerfFlags.nearExactLargeGrowth`). Releasing extent capacity
   never shrinks it below the initial 16 slots.
+* `indexForScrollOffset` and layout no longer map an offset just below the total
+  extent to an index past the last item when floating-point sums disagree.
 
 ## 0.2.2
 

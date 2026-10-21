@@ -383,6 +383,13 @@ void main() {
     expect(extentList.indexForOffset(200), equals(null));
     expect(extentList.indexForOffset(500), equals(null));
   });
+  test("indexForOffset stays in range when the total drifts from the tree", () {
+    final list = ExtentList();
+    // The total adds 10 * 0.3 in one step; the tree sums ten 0.3 values.
+    list.resize(10, (index) => 0.3);
+    expect(list.totalExtent, 3.0);
+    expect(list.indexForOffset(2.9999999999999996), 9);
+  });
   test("floating point rounding", () {
     final el = ExtentList();
     el.resize(2, (index) => 10.0);
