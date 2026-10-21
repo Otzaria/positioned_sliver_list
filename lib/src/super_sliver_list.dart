@@ -6,6 +6,7 @@ import "package:flutter/widgets.dart";
 import "package:logging/logging.dart";
 import "animate_to_item.dart";
 import "element.dart";
+import "estimate_refresh_stats.dart";
 import "extent_manager.dart";
 import "header_anchor.dart";
 import "item_position.dart";
@@ -344,6 +345,11 @@ class ListController extends ChangeNotifier {
 
   /// The scroll position of the viewport containing the attached list.
   ScrollPosition? get scrollPosition => _delegate?.delegate.scrollPosition;
+
+  /// How often the attached list refreshed all estimates and rebuilt its
+  /// offset index, and how long the last of each took. Null when detached.
+  EstimateRefreshStats? get estimateRefreshStats =>
+      _delegate?.estimateRefreshStats;
 
   /// Places the leading edge of the item at [index] at [alignment] of the
   /// viewport (0 is the leading edge, 1 the trailing edge, negative values are

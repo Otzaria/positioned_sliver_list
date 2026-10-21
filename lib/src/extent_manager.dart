@@ -4,6 +4,7 @@ import "package:flutter/foundation.dart";
 import "package:flutter/rendering.dart";
 import "package:flutter/scheduler.dart";
 import "package:flutter/widgets.dart" show ScrollPosition;
+import "estimate_refresh_stats.dart";
 import "extent_list.dart";
 import "header_anchor.dart";
 import "item_position.dart";
@@ -239,6 +240,24 @@ class ExtentManager with ChangeNotifier {
 
   void applyPendingEstimateUpdates() {
     assert(isLocked);
+    if (!kReleaseMode) {
+      FlutterTimeline.startSync(
+        "PositionedSliverList.applyPendingEstimateUpdates",
+        arguments: {
+          "refresh": _refreshAllEstimates ? "all" : "none",
+          "invalidated": _invalidatedEstimates.length,
+          "pending": _pendingEstimates.length,
+        },
+      );
+    }
+    try {
+      _applyPendingEstimateUpdates();
+    } finally {
+      if (!kReleaseMode) FlutterTimeline.finishSync();
+    }
+  }
+
+  void _applyPendingEstimateUpdates() {
     if (_refreshAllEstimates) {
       _extentList.refreshEstimates(delegate.estimateExtentForItem);
       _refreshAllEstimates = false;
@@ -311,6 +330,12 @@ class ExtentManager with ChangeNotifier {
   }
 
   final _extentList = ExtentList();
+
+  /// Counters for O(n) estimate refreshes and offset index rebuilds; the
+  /// extent list records its own operations here.
+  EstimateRefreshCounters get _refreshCounters => _extentList.counters;
+
+  EstimateRefreshStats get estimateRefreshStats => _refreshCounters.snapshot();
 
   int? indexForOffset(double offset) {
     return _extentList.indexForOffset(offset);

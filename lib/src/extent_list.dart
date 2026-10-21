@@ -1,6 +1,7 @@
 import "package:collection/collection.dart";
 import "package:flutter/foundation.dart";
 
+import "estimate_refresh_stats.dart";
 import "fenwick_tree.dart";
 import "perf_flags.dart";
 
@@ -133,6 +134,8 @@ class ExtentList {
   // offsetForIndex or indexForOffset is called).
   FenwickTree? _fenwickTree;
 
+  final counters = EstimateRefreshCounters();
+
   void setExtent(int index, double extent, {bool isEstimation = false}) {
     assert(_extents.length == _dirty.length);
     assert(index >= 0 && index < _extents.length && index < _dirty.length);
@@ -231,16 +234,32 @@ class ExtentList {
   }
 
   void refreshEstimates(double Function(int? index) estimate) {
+    final start = EstimateRefreshCounters.nowMicros;
     final uniform = estimate(null);
-    var total = 0.0;
-    for (var index = 0; index < length; index++) {
-      final extent = uniform > 0 ? uniform : estimate(index);
-      _extents[index] = extent;
-      total += extent;
+    if (!kReleaseMode) {
+      FlutterTimeline.startSync(
+        "PositionedSliverList.refreshEstimates",
+        arguments: {
+          "items": length,
+          "estimated": length,
+          "uniform": uniform > 0,
+        },
+      );
     }
-    _totalExtent = total;
-    _fenwickTree = null;
-    markAllDirty();
+    try {
+      var total = 0.0;
+      for (var index = 0; index < length; index++) {
+        final extent = uniform > 0 ? uniform : estimate(index);
+        _extents[index] = extent;
+        total += extent;
+      }
+      _totalExtent = total;
+      _fenwickTree = null;
+      markAllDirty();
+    } finally {
+      if (!kReleaseMode) FlutterTimeline.finishSync();
+    }
+    counters.recordRefresh(length, start);
   }
 
   void markDirty(int index) {
@@ -437,9 +456,21 @@ class ExtentList {
     final length = _extents.length;
     final current = _fenwickTree;
     if (current == null || current.size != length) {
-      final backing = _extents._list;
-      final view = Float64List.sublistView(backing, 0, length);
-      _fenwickTree = FenwickTree.fromList(list: view);
+      final start = EstimateRefreshCounters.nowMicros;
+      if (!kReleaseMode) {
+        FlutterTimeline.startSync(
+          "PositionedSliverList.rebuildOffsetIndex",
+          arguments: {"items": length, "reused": false},
+        );
+      }
+      try {
+        final backing = _extents._list;
+        final view = Float64List.sublistView(backing, 0, length);
+        _fenwickTree = FenwickTree.fromList(list: view);
+      } finally {
+        if (!kReleaseMode) FlutterTimeline.finishSync();
+      }
+      counters.recordIndexRebuild(start);
     }
     return _fenwickTree!;
   }

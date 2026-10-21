@@ -1,3 +1,4 @@
+export "src/estimate_refresh_stats.dart" show EstimateRefreshStats;
 export "src/extent_manager.dart" show ItemRange;
 export "src/header_anchor.dart";
 export "src/item_position.dart";

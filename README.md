@@ -272,6 +272,21 @@ A `Scrollbar` can use the list's `ScrollController` directly. Its thumb reflects
 
 Keep stable child keys and supply `findChildIndexCallback` when items can move. This allows the existing child state and its extent to follow the item through a reorder. A compatibility list can also take an external `ListController` when a parent needs to own a layout constraint before the list attaches.
 
+### Diagnose layout cost
+
+A full estimate refresh and a rebuild of the offset index are both linear in the number of items. `listController.estimateRefreshStats` reports how often each happened for the attached list and how long the last one took, or null while no list is attached. For a compatibility list, read `itemScrollController.listController?.estimateRefreshStats`.
+
+```dart
+final stats = listController.estimateRefreshStats;
+if (stats != null) {
+  debugPrint("${stats.refreshCount} refreshes, last "
+      "${stats.lastRefreshItemCount} items in ${stats.lastRefreshDuration}; "
+      "${stats.indexRebuildCount} index rebuilds");
+}
+```
+
+In debug and profile builds the same work appears in the DevTools timeline as `PositionedSliverList.applyPendingEstimateUpdates`, `PositionedSliverList.refreshEstimates` and `PositionedSliverList.rebuildOffsetIndex`, with the item counts as arguments.
+
 ## Example
 
 See the [example](example) folder for a complete sample app using `SuperSliverList`.

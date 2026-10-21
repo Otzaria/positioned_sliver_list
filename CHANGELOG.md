@@ -1,3 +1,8 @@
+## Unreleased
+
+* Add `ListController.estimateRefreshStats` and timeline events for full
+  estimate refreshes and offset index rebuilds, both linear in the item count.
+
 ## 0.2.2
 
 * Recover header anchors after keyed collapse or expansion changes child indices,

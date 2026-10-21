@@ -1,0 +1,94 @@
+import "package:flutter/foundation.dart";
+
+/// Cumulative cost of refreshing estimated extents and rebuilding the offset
+/// index of one list, read through `ListController.estimateRefreshStats`.
+///
+/// Both operations are linear in the number of items. Counters accumulate for
+/// the lifetime of the list and survive attaching its controller again.
+@immutable
+class EstimateRefreshStats {
+  const EstimateRefreshStats({
+    this.refreshCount = 0,
+    this.lastRefreshItemCount = 0,
+    this.lastRefreshDuration = Duration.zero,
+    this.indexRebuildCount = 0,
+    this.lastIndexRebuildDuration = Duration.zero,
+  });
+
+  /// Number of passes that replaced every item extent with a new estimate,
+  /// caused by a cross-axis extent change, an `estimationKey` change or
+  /// `invalidateAllExtents`.
+  final int refreshCount;
+
+  /// Number of items filled by the most recent refresh.
+  final int lastRefreshItemCount;
+
+  /// Duration of the most recent refresh, excluding the offset index rebuild.
+  final Duration lastRefreshDuration;
+
+  /// Number of full rebuilds of the index that maps item indices to scroll
+  /// offsets.
+  final int indexRebuildCount;
+
+  /// Duration of the most recent full offset index rebuild.
+  final Duration lastIndexRebuildDuration;
+
+  @override
+  bool operator ==(Object other) =>
+      other is EstimateRefreshStats &&
+      other.refreshCount == refreshCount &&
+      other.lastRefreshItemCount == lastRefreshItemCount &&
+      other.lastRefreshDuration == lastRefreshDuration &&
+      other.indexRebuildCount == indexRebuildCount &&
+      other.lastIndexRebuildDuration == lastIndexRebuildDuration;
+
+  @override
+  int get hashCode => Object.hash(
+    refreshCount,
+    lastRefreshItemCount,
+    lastRefreshDuration,
+    indexRebuildCount,
+    lastIndexRebuildDuration,
+  );
+
+  @override
+  String toString() =>
+      "EstimateRefreshStats(refreshCount: $refreshCount, "
+      "lastRefreshItemCount: $lastRefreshItemCount, "
+      "lastRefreshDuration: $lastRefreshDuration, "
+      "indexRebuildCount: $indexRebuildCount, "
+      "lastIndexRebuildDuration: $lastIndexRebuildDuration)";
+}
+
+/// Mutable counters behind [EstimateRefreshStats], owned by one list.
+class EstimateRefreshCounters {
+  // One running clock for all lists: a timed O(n) operation costs two reads.
+  static final _clock = Stopwatch()..start();
+
+  static int get nowMicros => _clock.elapsedMicroseconds;
+
+  int refreshCount = 0;
+  int lastRefreshItemCount = 0;
+  int lastRefreshMicros = 0;
+  int indexRebuildCount = 0;
+  int lastIndexRebuildMicros = 0;
+
+  void recordRefresh(int itemCount, int startMicros) {
+    ++refreshCount;
+    lastRefreshItemCount = itemCount;
+    lastRefreshMicros = nowMicros - startMicros;
+  }
+
+  void recordIndexRebuild(int startMicros) {
+    ++indexRebuildCount;
+    lastIndexRebuildMicros = nowMicros - startMicros;
+  }
+
+  EstimateRefreshStats snapshot() => EstimateRefreshStats(
+    refreshCount: refreshCount,
+    lastRefreshItemCount: lastRefreshItemCount,
+    lastRefreshDuration: Duration(microseconds: lastRefreshMicros),
+    indexRebuildCount: indexRebuildCount,
+    lastIndexRebuildDuration: Duration(microseconds: lastIndexRebuildMicros),
+  );
+}
