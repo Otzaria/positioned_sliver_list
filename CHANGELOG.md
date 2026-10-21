@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.3
 
 * Keep the scroll position during an estimate refresh (a width change,
   `estimationKey`, `invalidateAllExtents` or `updateEstimatedExtents`) while
