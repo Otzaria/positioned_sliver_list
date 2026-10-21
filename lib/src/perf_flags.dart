@@ -97,4 +97,16 @@ abstract final class SuperSliverListPerfFlags {
   /// keeping the precalculation anchor across structural changes (streaming
   /// chat: one O(n) clean-range re-walk per appended message avoided).
   static bool preserveCleanRangeOnStructuralChange = true;
+
+  /// Win 18: Every full rebuild of the Fenwick tree (after an estimate
+  /// refresh, a middle insertion or removal, or a large append) allocated a
+  /// new `Float64List(n + 1)`. When enabled, the previous tree's backing store
+  /// is refilled in place while it fits and stays more than a quarter full.
+  static bool reuseFenwickBuffer = true;
+
+  /// Win 19: `ResizableFloat64List` grew by doubling only, so a first resize
+  /// to 190,760 items reserved 262,144 slots. When enabled, growth that needs
+  /// more than twice the current capacity reserves at most the required size
+  /// plus 1/16 instead; smaller growth still doubles.
+  static bool nearExactLargeGrowth = true;
 }

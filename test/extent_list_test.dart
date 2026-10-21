@@ -392,4 +392,84 @@ void main() {
     el.setExtent(1, 0.0);
     expect(el.totalExtent, 0.0);
   });
+
+  group("allocations", () {
+    test("refresh rebuilds tree in place", () {
+      final list = ExtentList();
+      list.resize(10000, (_) => 10.0);
+      expect(list.offsetForIndex(9999), 99990);
+      final buffer = list.debugFenwickTree!.debugBuffer;
+      list.refreshEstimates((index) => index == null ? 0 : 20);
+      expect(list.debugFenwickTree, isNull);
+      expect(list.offsetForIndex(9999), 199980);
+      expect(list.debugFenwickTree!.debugBuffer, same(buffer));
+      list.insertAt(10, (_) => 5);
+      expect(list.offsetForIndex(10000), 199985);
+      final grown = list.debugFenwickTree!.debugBuffer;
+      expect(grown.length, greaterThan(buffer.length + 1));
+      list.insertAt(10, (_) => 5);
+      expect(list.offsetForIndex(10001), 199990);
+      expect(list.debugFenwickTree!.debugBuffer, same(grown));
+    });
+
+    test("refresh allocates a new tree with reuse disabled", () {
+      final saved = SuperSliverListPerfFlags.reuseFenwickBuffer;
+      SuperSliverListPerfFlags.reuseFenwickBuffer = false;
+      addTearDown(() => SuperSliverListPerfFlags.reuseFenwickBuffer = saved);
+      final list = ExtentList();
+      list.resize(10000, (_) => 10.0);
+      list.offsetForIndex(0);
+      final buffer = list.debugFenwickTree!.debugBuffer;
+      list.refreshEstimates((index) => index == null ? 0 : 20);
+      expect(list.offsetForIndex(9999), 199980);
+      expect(list.debugFenwickTree!.debugBuffer, isNot(same(buffer)));
+    });
+
+    test("large first resize near-exact capacity", () {
+      final list = ExtentList();
+      list.resize(190760, (_) => 10.0);
+      expect(list.debugCapacity, 190760 + (190760 >> 4));
+      list.resize(190761, (_) => 10.0);
+      expect(list.debugCapacity, 190760 + (190760 >> 4));
+    });
+
+    test("large growth never exceeds doubling", () {
+      final list = ExtentList();
+      list.resize(1000001, (_) => 10.0);
+      expect(list.debugCapacity, 1048576);
+    });
+
+    test("power-of-two growth with flag off", () {
+      final saved = SuperSliverListPerfFlags.nearExactLargeGrowth;
+      SuperSliverListPerfFlags.nearExactLargeGrowth = false;
+      addTearDown(() => SuperSliverListPerfFlags.nearExactLargeGrowth = saved);
+      final list = ExtentList();
+      list.resize(190760, (_) => 10.0);
+      expect(list.debugCapacity, 262144);
+    });
+
+    test("small growth still doubles", () {
+      final list = ExtentList();
+      list.resize(20, (_) => 10.0);
+      expect(list.debugCapacity, 32);
+      list.resize(1000, (_) => 10.0);
+      expect(list.debugCapacity, 1024);
+      list.resize(1100, (_) => 10.0);
+      expect(list.debugCapacity, 2048);
+    });
+
+    test("trim never below min", () {
+      final list = ExtentList();
+      // A capacity that is not a power of two halves through 24 to below 16.
+      list.resize(190760, (_) => 10.0);
+      expect(list.debugCapacity, 202682);
+      for (final size in [500, 200, 50, 3, 1, 0]) {
+        list.resize(size, (_) => 10.0);
+        expect(list.debugCapacity, greaterThanOrEqualTo(16));
+      }
+      expect(list.debugCapacity, 16);
+      list.resize(5, (_) => 10.0);
+      expect(list.totalExtent, 50);
+    });
+  });
 }

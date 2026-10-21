@@ -2,6 +2,11 @@
 
 * Add `ListController.estimateRefreshStats` and timeline events for full
   estimate refreshes and offset index rebuilds, both linear in the item count.
+* Rebuild the offset index in its previous buffer instead of allocating a new
+  one (`SuperSliverListPerfFlags.reuseFenwickBuffer`), and reserve close to the
+  required size on a large first resize instead of the next power of two
+  (`SuperSliverListPerfFlags.nearExactLargeGrowth`). Releasing extent capacity
+  never shrinks it below the initial 16 slots.
 
 ## 0.2.2
 

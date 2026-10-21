@@ -22,7 +22,8 @@ import "package:positioned_sliver_list/src/extent_list.dart";
 import "perf_tester.dart";
 
 // One above a power of two, so removing a single item hits the trim
-// condition and re-adding it forces a re-grow.
+// condition and re-adding it forces a re-grow. Assumes doubling growth
+// (capacity 32768), so Win 19 is disabled while this runs.
 const _boundary = 16385;
 const _cycles = 4000;
 
@@ -30,7 +31,9 @@ enum _Mode { insertRemove, resize }
 
 double _run(_Mode mode, {required bool hysteresis}) {
   final saved = SuperSliverListPerfFlags.trimHysteresis;
+  final savedGrowth = SuperSliverListPerfFlags.nearExactLargeGrowth;
   SuperSliverListPerfFlags.trimHysteresis = hysteresis;
+  SuperSliverListPerfFlags.nearExactLargeGrowth = false;
   try {
     final list = ExtentList();
     list.resize(_boundary, (_) => 100.0);
@@ -49,6 +52,7 @@ double _run(_Mode mode, {required bool hysteresis}) {
     return list.totalExtent + list.length + list.dirtyItemCount;
   } finally {
     SuperSliverListPerfFlags.trimHysteresis = saved;
+    SuperSliverListPerfFlags.nearExactLargeGrowth = savedGrowth;
   }
 }
 

@@ -1,3 +1,5 @@
+import "dart:math" as math;
+
 import "package:collection/collection.dart";
 import "package:flutter/foundation.dart";
 
@@ -71,15 +73,19 @@ class ResizableFloat64List {
     final divisor = SuperSliverListPerfFlags.trimHysteresis ? 4 : 2;
     var newCapacity = _capacity;
     while (newCapacity > _minCapacity && newCapacity ~/ divisor >= _length) {
-      newCapacity ~/= 2;
+      newCapacity = math.max(newCapacity ~/ 2, _minCapacity);
     }
     _reallocate(newCapacity);
   }
 
   void _ensureCapacity(int newCapacity) {
     var capacity = _capacity;
+    final isLargeGrowth = newCapacity > capacity * 2;
     while (capacity < newCapacity) {
       capacity *= 2;
+    }
+    if (SuperSliverListPerfFlags.nearExactLargeGrowth && isLargeGrowth) {
+      capacity = math.min(capacity, newCapacity + (newCapacity >> 4));
     }
     _reallocate(capacity);
   }
@@ -98,6 +104,9 @@ class ResizableFloat64List {
   bool get isEmpty => _length == 0;
 
   int get length => _length;
+
+  @visibleForTesting
+  int get debugCapacity => _capacity;
 
   int get _capacity => _list.length;
   int _length = 0;
@@ -133,6 +142,22 @@ class ExtentList {
   // of the list (which require rebuilding the FenwickTree next time
   // offsetForIndex or indexForOffset is called).
   FenwickTree? _fenwickTree;
+
+  // A discarded tree whose backing store the next rebuild can refill.
+  FenwickTree? _spareFenwickTree;
+
+  void _invalidateFenwickTree() {
+    if (SuperSliverListPerfFlags.reuseFenwickBuffer) {
+      _spareFenwickTree = _fenwickTree ?? _spareFenwickTree;
+    }
+    _fenwickTree = null;
+  }
+
+  @visibleForTesting
+  FenwickTree? get debugFenwickTree => _fenwickTree;
+
+  @visibleForTesting
+  int get debugCapacity => _extents.debugCapacity;
 
   final counters = EstimateRefreshCounters();
 
@@ -254,7 +279,7 @@ class ExtentList {
         total += extent;
       }
       _totalExtent = total;
-      _fenwickTree = null;
+      _invalidateFenwickTree();
       markAllDirty();
     } finally {
       if (!kReleaseMode) FlutterTimeline.finishSync();
@@ -328,7 +353,7 @@ class ExtentList {
       // Large truncations also release excess backing capacity.
       _fenwickTree!.truncate(index);
     } else {
-      _fenwickTree = null;
+      _invalidateFenwickTree();
     }
   }
 
@@ -372,7 +397,7 @@ class ExtentList {
       // Appending at the end keeps the tree valid (O(log n)).
       _fenwickTree!.append(extent);
     } else {
-      _fenwickTree = null;
+      _invalidateFenwickTree();
     }
   }
 
@@ -444,11 +469,11 @@ class ExtentList {
             tree.append(_extents[i]);
           }
         } else {
-          _fenwickTree = null;
+          _invalidateFenwickTree();
         }
       }
     } else {
-      _fenwickTree = null;
+      _invalidateFenwickTree();
     }
   }
 
@@ -457,16 +482,28 @@ class ExtentList {
     final current = _fenwickTree;
     if (current == null || current.size != length) {
       final start = EstimateRefreshCounters.nowMicros;
+      final spare = SuperSliverListPerfFlags.reuseFenwickBuffer
+          ? current ?? _spareFenwickTree
+          : null;
       if (!kReleaseMode) {
         FlutterTimeline.startSync(
           "PositionedSliverList.rebuildOffsetIndex",
-          arguments: {"items": length, "reused": false},
+          arguments: {
+            "items": length,
+            "reused": spare?.keepsBufferFor(length) ?? false,
+          },
         );
       }
       try {
         final backing = _extents._list;
         final view = Float64List.sublistView(backing, 0, length);
-        _fenwickTree = FenwickTree.fromList(list: view);
+        if (spare != null) {
+          _spareFenwickTree = null;
+          spare.rebuildFrom(view);
+          _fenwickTree = spare;
+        } else {
+          _fenwickTree = FenwickTree.fromList(list: view);
+        }
       } finally {
         if (!kReleaseMode) FlutterTimeline.finishSync();
       }

@@ -1,6 +1,8 @@
 import "dart:math" as math;
 import "dart:typed_data";
 
+import "package:flutter/foundation.dart" show visibleForTesting;
+
 /// Zero indexed Fenwick Tree
 class FenwickTree {
   FenwickTree({required int size})
@@ -10,14 +12,45 @@ class FenwickTree {
   FenwickTree.fromList({required Float64List list})
     : _size = list.length,
       _tree = Float64List(list.length + 1) {
-    final size = _size;
+    _build(_tree, list);
+  }
+
+  static void _build(Float64List tree, Float64List list) {
+    final size = list.length;
     for (int i = 1; i <= size; ++i) {
-      _tree[i] += list[i - 1];
+      tree[i] += list[i - 1];
       if (i + (i & -i) <= size) {
-        _tree[i + (i & -i)] += _tree[i];
+        tree[i + (i & -i)] += tree[i];
       }
     }
   }
+
+  /// Whether [rebuildFrom] with [size] elements keeps the backing store: it
+  /// fits and stays more than a quarter full, as in [truncate].
+  bool keepsBufferFor(int size) {
+    final requiredLength = size + 1;
+    return _tree.length >= requiredLength &&
+        !(_tree.length > 16 && requiredLength <= _tree.length ~/ 4);
+  }
+
+  /// Rebuilds the tree from [list] in O(n); the result is bit-identical to
+  /// [FenwickTree.fromList].
+  void rebuildFrom(Float64List list) {
+    final requiredLength = list.length + 1;
+    if (keepsBufferFor(list.length)) {
+      _tree.fillRange(0, requiredLength, 0.0);
+    } else if (_tree.length < requiredLength) {
+      // Headroom lets repeated middle insertions keep the new buffer.
+      _tree = Float64List(requiredLength + (requiredLength >> 4));
+    } else {
+      _tree = Float64List(requiredLength);
+    }
+    _size = list.length;
+    _build(_tree, list);
+  }
+
+  @visibleForTesting
+  Float64List get debugBuffer => _tree;
 
   int get size => _size;
 

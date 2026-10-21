@@ -183,4 +183,62 @@ void main() {
       total += i == 0 ? 100 : i;
     }
   });
+
+  group("rebuildFrom", () {
+    Float64List values(int n, double Function(int) f) =>
+        Float64List.fromList([for (var i = 0; i < n; i++) f(i)]);
+
+    test("reuses buffer", () {
+      final tree = FenwickTree.fromList(list: values(1000, (i) => 1));
+      final buffer = tree.debugBuffer;
+      tree.rebuildFrom(values(600, (i) => 2));
+      expect(tree.debugBuffer, same(buffer));
+      expect(tree.size, 600);
+      expect(tree.query(600), 1200);
+      expect(tree.inverseQuery(1199), 599);
+      tree.append(5);
+      expect(tree.query(601), 1205);
+    });
+
+    test("trims at quarter capacity", () {
+      final tree = FenwickTree.fromList(list: values(1000, (i) => 1));
+      final buffer = tree.debugBuffer;
+      tree.rebuildFrom(values(249, (i) => 1));
+      expect(tree.debugBuffer, isNot(same(buffer)));
+      expect(tree.capacity, 249);
+      expect(tree.query(249), 249);
+    });
+
+    test("grows with a sixteenth of headroom", () {
+      final tree = FenwickTree.fromList(list: values(10, (i) => 1));
+      tree.rebuildFrom(values(5000, (i) => 3));
+      expect(tree.capacity, 5001 + (5001 >> 4) - 1);
+      expect(tree.query(5000), 15000);
+      final buffer = tree.debugBuffer;
+      tree.rebuildFrom(values(5001, (i) => 3));
+      expect(tree.debugBuffer, same(buffer));
+      expect(tree.query(5001), 15003);
+    });
+
+    test("matches fromList bit for bit", () {
+      final random = math.Random(7);
+      final tree = FenwickTree.fromList(
+        list: values(4096, (i) => random.nextDouble() * 1e6),
+      );
+      for (final n in [4096, 3000, 1025, 1024, 17, 1, 0, 2000]) {
+        final list = values(n, (i) => random.nextDouble() * 977.3 - 0.0);
+        tree.rebuildFrom(list);
+        final reference = FenwickTree.fromList(list: list);
+        expect(tree.size, n);
+        for (var i = 0; i <= n; i++) {
+          expect(tree.debugBuffer[i], reference.debugBuffer[i]);
+          expect(tree.query(i), reference.query(i));
+        }
+        final total = reference.query(n);
+        for (var offset = 0.0; offset < total; offset += total / 97) {
+          expect(tree.inverseQuery(offset), reference.inverseQuery(offset));
+        }
+      }
+    });
+  });
 }
