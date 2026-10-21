@@ -184,7 +184,7 @@ if (saved != null) await itemScrollController.restoreAnchorAsync(saved);
 
 Provide `estimateExtent` when you can: items that were never laid out are estimated at 100 pixels otherwise, which makes the scrollbar less steady (jumps are exact either way).
 
-Additions to the original API include `scrollController`, `estimateExtent`, `estimatedSeparatorExtent`, `initialOffset`, `restorePosition`, `overscrollToTarget`, an `offset` for `jumpTo`/`scrollTo`, `ItemScrollController.scrollController`/`listController`/`anchor`, `jumpToAsync`, `restoreAnchor`/`restoreAnchorAsync`, and `ScrollOffsetController.jumpBy`/`isAttached`.
+Additions to the original API include `scrollController`, `estimateExtent`, `estimatedSeparatorExtent`, `initialOffset`, `restorePosition`, `overscrollToTarget`, `notifyPositionsOnRebuild`, an `offset` for `jumpTo`/`scrollTo`, `ItemScrollController.scrollController`/`listController`/`anchor`, `jumpToAsync`, `restoreAnchor`/`restoreAnchorAsync`, and `ScrollOffsetController.jumpBy`/`isAttached`.
 
 Use `restoreAnchor` rather than translating the anchor into `jumpTo` arguments: for item zero, ordinary `jumpTo(index: 0)` deliberately keeps the leading padding visible, while restoring an anchor preserves exactly how much of that padding had been scrolled away. `restorePosition: true` uses a separate `PageStorage` namespace, so it can coexist with an external `ScrollController` that keeps its pixel offset.
 
@@ -196,6 +196,7 @@ Behavior that differs from `scrollable_positioned_list`:
 - The cache area around a jump target is filled one frame after the jump.
 - `ScrollOffsetListener` reports scroll movements only; layout corrections (exact landing, anchoring) are not reported.
 - `jumpToDistantItems` is accepted and ignored.
+- Like the original, every rebuild notifies `itemPositionsListener` by default, once per frame. With `notifyPositionsOnRebuild: false`, a rebuild that moves nothing does not notify, unless the listener, the separated mode, `listController` or `restorePosition` changed.
 
 ## Advanced
 

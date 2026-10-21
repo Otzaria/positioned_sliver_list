@@ -43,6 +43,7 @@ class ScrollablePositionedList extends StatefulWidget {
     this.itemScrollController,
     this.shrinkWrap = false,
     this.itemPositionsListener,
+    this.notifyPositionsOnRebuild = true,
     this.scrollOffsetController,
     this.scrollOffsetListener,
     this.initialScrollIndex = 0,
@@ -79,6 +80,7 @@ class ScrollablePositionedList extends StatefulWidget {
     this.itemScrollController,
     this.shrinkWrap = false,
     this.itemPositionsListener,
+    this.notifyPositionsOnRebuild = true,
     this.scrollOffsetController,
     this.scrollOffsetListener,
     this.initialScrollIndex = 0,
@@ -117,6 +119,7 @@ class ScrollablePositionedList extends StatefulWidget {
     this.itemScrollController,
     this.shrinkWrap = false,
     this.itemPositionsListener,
+    this.notifyPositionsOnRebuild = true,
     this.scrollOffsetController,
     this.scrollOffsetListener,
     this.initialScrollIndex = 0,
@@ -162,6 +165,15 @@ class ScrollablePositionedList extends StatefulWidget {
   /// Receives the positions of the visible items after every frame in which
   /// they changed.
   final ItemPositionsListener? itemPositionsListener;
+
+  /// Whether [itemPositionsListener] is notified after every rebuild of the
+  /// list, even when no position changed, as in `scrollable_positioned_list`.
+  ///
+  /// When false, a rebuild notifies only when the listener, the separated
+  /// mode, [listController] or [restorePosition] changed; positions that move
+  /// are still reported after the layout that moves them. Rebuilds in the
+  /// same frame notify once either way.
+  final bool notifyPositionsOnRebuild;
 
   /// Scrolls by a number of pixels.
   final ScrollOffsetController? scrollOffsetController;
@@ -619,8 +631,23 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
       _ownScrollController?.dispose();
       _ownScrollController = null;
     }
-    // Listeners are told about a rebuild even when nothing moved.
+    if (widget.notifyPositionsOnRebuild ||
+        oldWidget.itemPositionsListener != widget.itemPositionsListener ||
+        oldWidget._separated != widget._separated ||
+        oldWidget.listController != widget.listController ||
+        oldWidget.restorePosition != widget.restorePosition) {
+      _scheduleForcedPositionsUpdate();
+    }
+  }
+
+  bool _forcedPositionsUpdateScheduled = false;
+
+  // Listeners are told about a rebuild even when nothing moved, once a frame.
+  void _scheduleForcedPositionsUpdate() {
+    if (_forcedPositionsUpdateScheduled) return;
+    _forcedPositionsUpdateScheduled = true;
     SchedulerBinding.instance.addPostFrameCallback((_) {
+      _forcedPositionsUpdateScheduled = false;
       if (mounted && _listeningToPositions) {
         _updatePositions(force: true);
       }

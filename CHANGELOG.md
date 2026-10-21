@@ -14,6 +14,12 @@
   an estimator divides by a zero width. Debug builds report the first one.
 * Schedule one delayed precalculation layout per list and frame, however many
   times the list is laid out in that frame.
+* Compatibility API: rebuilds of `ScrollablePositionedList` in the same frame
+  notify `itemPositionsListener` once.
+* Add `notifyPositionsOnRebuild` (default `true`). When false, a rebuild that
+  moves nothing no longer notifies, unless the listener, the separated mode,
+  `listController` or `restorePosition` changed. Scrolls, jumps and position
+  restoration are unaffected.
 
 ## 0.2.2
 

@@ -15,6 +15,7 @@ Widget _list({
   double initialAlignment = 0,
   OverscrollToTarget overscrollToTarget =
       OverscrollToTarget.matchScrollablePositionedList,
+  bool notifyPositionsOnRebuild = true,
 }) => PageStorage(
   bucket: bucket,
   child: KeyedSubtree(
@@ -24,6 +25,7 @@ Widget _list({
       itemScrollController: controller,
       scrollController: scrollController,
       restorePosition: true,
+      notifyPositionsOnRebuild: notifyPositionsOnRebuild,
       padding: padding,
       scrollDirection: axis,
       reverse: reverse,
@@ -213,6 +215,26 @@ void main() {
       await tester.pumpWidget(_host(list()));
       expect(tester.takeException(), isNull);
       expect(tester.getTopLeft(find.text("Item 23")).dy, closeTo(-25, 0.01));
+    },
+  );
+
+  testWidgets(
+    "restorePosition with notifyPositionsOnRebuild false saves after a scroll",
+    (tester) async {
+      final bucket = PageStorageBucket();
+      final controller = ItemScrollController();
+      Widget list() => _list(
+        bucket: bucket,
+        controller: controller,
+        notifyPositionsOnRebuild: false,
+      );
+      await tester.pumpWidget(_host(list()));
+      controller.scrollController!.jumpTo(1234);
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(find.text("Item 6")).dy, closeTo(-34, 0.01));
+      await tester.pumpWidget(_host(const SizedBox()));
+      await tester.pumpWidget(_host(list()));
+      expect(tester.getTopLeft(find.text("Item 6")).dy, closeTo(-34, 0.01));
     },
   );
 
