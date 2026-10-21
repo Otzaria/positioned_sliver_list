@@ -1893,8 +1893,6 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
             _extentManager.offsetForIndex(_indexOf(child)) - oldOffset;
         _shiftLayoutOffsets(child, delta);
         if (constraints.scrollOffset > 0 &&
-            _pendingTarget == null &&
-            _header == null &&
             delta.abs() > precisionErrorTolerance) {
           geometry = SliverGeometry(scrollOffsetCorrection: delta);
           childManager.didFinishLayout();

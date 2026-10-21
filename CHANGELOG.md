@@ -1,5 +1,11 @@
 ## Unreleased
 
+* Keep the scroll position during an estimate refresh (a width change,
+  `estimationKey`, `invalidateAllExtents` or `updateEstimatedExtents`) while
+  a header anchor (`preserveHeader`) is active or a jump to a laid out item is
+  pending. The list previously built and disposed every item between the old
+  and the corrected position in one frame (about 23,000 items for a width
+  change in the middle of 190,000).
 * Add `ListController.estimateRefreshStats` and timeline events for full
   estimate refreshes and offset index rebuilds, both linear in the item count.
 * Rebuild the offset index in its previous buffer instead of allocating a new
