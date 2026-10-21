@@ -260,6 +260,30 @@ void main() {
     expect(native.extentForIndex(0), (100.0, false));
   });
 
+  testWidgets("estimationKey replaces measurements outside the cache area", (
+    tester,
+  ) async {
+    final item = ItemScrollController();
+    Widget list(int revision) => ScrollablePositionedList.builder(
+      itemScrollController: item,
+      itemCount: 1000,
+      estimationKey: revision,
+      estimateExtent: (_, width) => revision == 0 ? 150 : 250,
+      itemBuilder: (_, index) => const SizedBox(height: 100),
+    );
+    await tester.pumpWidget(_host(list(0)));
+    item.jumpTo(index: 500);
+    await tester.pumpAndSettle();
+    item.jumpTo(index: 0);
+    await tester.pumpAndSettle();
+    final native = item.listController!;
+    expect(native.extentForIndex(500), (100.0, false));
+    await tester.pumpWidget(_host(list(1)));
+    await tester.pumpAndSettle();
+    expect(native.extentForIndex(500), (250.0, true));
+    expect(native.extentForIndex(0), (100.0, false));
+  });
+
   testWidgets("logical extent and pixel wrappers map separated items", (
     tester,
   ) async {

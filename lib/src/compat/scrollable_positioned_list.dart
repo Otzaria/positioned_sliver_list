@@ -235,8 +235,8 @@ class ScrollablePositionedList extends StatefulWidget {
   /// החלפת ה-callback אינה מרעננת הערכות: לשינוי הנתונים עדכנו [estimationKey].
   final ItemExtentEstimator? estimateExtent;
 
-  /// שינוי המפתח מרענן הערכות שטרם נמדדו, בלי לאבד מדידות קיימות.
-  /// רוחב חדש ורענון מפורש של [ListController] מרעננים אותן גם בלעדיו.
+  /// שינוי המפתח מחליף בהערכה חדשה את מידות כל הפריטים, גם את אלה שנמדדו,
+  /// והפריטים הפרוסים נמדדים מחדש. רוחב חדש ורענון מפורש של [ListController] עושים זאת גם בלעדיו.
   final Object? estimationKey;
 
   /// Estimated extent of a separator in a [ScrollablePositionedList.separated]
