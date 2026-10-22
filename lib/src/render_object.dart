@@ -1889,7 +1889,22 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       final oldOffset = child == null
           ? null
           : _parentDataOf(child).layoutOffset;
+      final extentBefore = _totalExtent();
       _extentManager.applyPendingEstimateUpdates();
+      // A list scrolled past keeps the content after it in place.
+      final extentDelta = _totalExtent() - extentBefore;
+      if (child == null &&
+          _pendingTarget == null &&
+          _childScrollOffsetEstimation == null &&
+          constraints.remainingPaintExtent > 0 &&
+          constraints.scrollOffset >= extentBefore - precisionErrorTolerance &&
+          constraints.scrollOffset > 0 &&
+          extentDelta.abs() > precisionErrorTolerance) {
+        ++layoutPass.correctionCount;
+        geometry = SliverGeometry(scrollOffsetCorrection: extentDelta);
+        childManager.didFinishLayout();
+        return;
+      }
       for (var c = child; c != null; c = childAfter(c)) {
         if (c.hasSize) _extentManager.setExtent(_indexOf(c), paintExtentOf(c));
       }

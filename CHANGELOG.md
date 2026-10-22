@@ -1,3 +1,10 @@
+## Unreleased
+
+* Keep the content after a list in place when an estimate refresh changes the
+  extent of that list while it is scrolled past, for example a width change
+  with another list below it in the same viewport. The scroll position
+  previously landed inside the first list.
+
 ## 0.2.3
 
 * Keep the scroll position during an estimate refresh (a width change,
