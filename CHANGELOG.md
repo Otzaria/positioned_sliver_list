@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.4
 
 * Keep the content after a list in place when an estimate refresh changes the
   extent of that list while it is scrolled past, for example a width change
