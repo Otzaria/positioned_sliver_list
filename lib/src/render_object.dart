@@ -197,10 +197,13 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     final stored = _crossAxisKeyValue;
     _crossAxisKeyValue = key;
     if (!identical(stored, _keyNotComputed) && !_sameKey(stored, key)) {
-      _extentManager.markAllDirty();
+      _crossAxisKeyChangedSinceLayout = true;
       markNeedsLayout();
     }
   }
+
+  // Refreshed in layout like a width change, so that it can be deferred.
+  bool _crossAxisKeyChangedSinceLayout = false;
 
   /// Whether a relevant cross axis extent change must refresh all estimates
   /// in this layout instead of when the extent stops changing.
@@ -1857,6 +1860,10 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     } else if (_crossAxisLayoutKey != null &&
         identical(_crossAxisKeyValue, _keyNotComputed)) {
       _crossAxisKeyValue = _crossAxisLayoutKey!(constraints.crossAxisExtent);
+    }
+    if (_crossAxisKeyChangedSinceLayout) {
+      _crossAxisKeyChangedSinceLayout = false;
+      relevantResize = true;
     }
     if (relevantResize) {
       layoutState.layoutRelevantResize = true;

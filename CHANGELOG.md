@@ -4,6 +4,11 @@
   extent of that list while it is scrolled past, for example a width change
   with another list below it in the same viewport. The scroll position
   previously landed inside the first list.
+* A new `crossAxisLayoutKey` function that returns a different key for the
+  current width refreshes estimates like a width change, so a list of 4096
+  items or more defers that refresh while the change continues. A key that
+  depends on the window width, and not only on the width of the list, no
+  longer refreshes all estimates in every frame of a window resize.
 
 ## 0.2.3
 

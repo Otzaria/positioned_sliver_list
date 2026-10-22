@@ -26,6 +26,7 @@ class _Harness {
     int count = _count,
     Object? estimationKey,
     CrossAxisLayoutKey? crossAxisLayoutKey,
+    CrossAxisLayoutKey Function(double width)? crossAxisLayoutKeyAt,
     InitialScrollPosition initialScrollPosition = InitialScrollPosition.start,
     OverscrollToTarget overscrollToTarget = OverscrollToTarget.none,
   }) => Directionality(
@@ -46,7 +47,9 @@ class _Harness {
                   listController: list,
                   itemCount: count,
                   estimationKey: estimationKey,
-                  crossAxisLayoutKey: crossAxisLayoutKey,
+                  crossAxisLayoutKey:
+                      crossAxisLayoutKeyAt?.call(width.value) ??
+                      crossAxisLayoutKey,
                   initialScrollPosition: initialScrollPosition,
                   overscrollToTarget: overscrollToTarget,
                   extentEstimation: (index, crossAxis) {
@@ -301,6 +304,62 @@ void main() {
     expect(h.list.extentForIndex(9000), (_estimateAt(340), true));
     await tester.pump();
     expect(h.stats.refreshCount, 1);
+  });
+
+  // Like a text column that is a fraction of the window, not of the list.
+  CrossAxisLayoutKey columnOf(double window) =>
+      (_) => (window * 0.95).roundToDouble();
+
+  testWidgets("a key that changes with the window is deferred", (tester) async {
+    await tester.pumpWidget(h.build(crossAxisLayoutKeyAt: columnOf));
+    await h.jump(tester, 5000, offset: -37);
+    final fraction = 37 / _reflow(5000, 400);
+    final calls = h.estimateCalls;
+
+    await h.animate(
+      tester,
+      to: 300,
+      afterFrame: (frame) {
+        expect(h.estimateCalls, calls, reason: "frame $frame");
+        expect(
+          _top(tester, 5000),
+          closeTo(-fraction * _reflow(5000, h.width.value), 0.01),
+          reason: "frame $frame",
+        );
+      },
+    );
+    expect(h.stats.refreshCount, 0);
+    await tester.pump();
+    expect(h.stats.refreshCount, 1);
+    expect(h.list.extentForIndex(9000), (_estimateAt(300), true));
+    expect(_top(tester, 5000), closeTo(-fraction * _reflow(5000, 300), 0.01));
+  });
+
+  testWidgets("a key change without a width change refreshes", (tester) async {
+    await tester.pumpWidget(h.build(crossAxisLayoutKeyAt: columnOf));
+    await h.jump(tester, 5000);
+    await tester.pumpWidget(
+      h.build(crossAxisLayoutKeyAt: (width) => columnOf(width - 50)),
+    );
+    expect(h.stats.refreshCount, 0);
+    expect(h.stats.deferredResizeCount, 1);
+    await tester.pump();
+    expect(h.stats.refreshCount, 1);
+    expect(_top(tester, 5000), closeTo(0, 0.01));
+
+    // A small list refreshes in the same frame.
+    await tester.pumpWidget(
+      h.build(count: 100, crossAxisLayoutKeyAt: columnOf),
+    );
+    await tester.pump();
+    final refreshes = h.stats.refreshCount;
+    await tester.pumpWidget(
+      h.build(
+        count: 100,
+        crossAxisLayoutKeyAt: (width) => columnOf(width - 50),
+      ),
+    );
+    expect(h.stats.refreshCount, refreshes + 1);
   });
 
   testWidgets("updateEstimatedExtents during deferral is kept", (tester) async {

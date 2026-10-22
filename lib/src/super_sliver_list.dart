@@ -1067,7 +1067,8 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
   /// kept; laid out items are still laid out at the new extent. When null,
   /// every change refreshes all estimates. [extentEstimation] should depend on
   /// the cross axis extent only through this value. A new function that
-  /// returns a different value for the current extent refreshes estimates.
+  /// returns a different value for the current extent refreshes estimates,
+  /// like a cross axis extent change, so a large list may defer the refresh.
   final CrossAxisLayoutKey? crossAxisLayoutKey;
 
   /// Optional policy that can be used to asynchronously precalculate the extents
