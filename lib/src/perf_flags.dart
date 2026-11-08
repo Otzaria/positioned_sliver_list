@@ -122,4 +122,12 @@ abstract final class SuperSliverListPerfFlags {
   /// buffer directly and calculates the total without a Dart per-item loop.
   /// Disable to compare the previous implementation in perf tests.
   static bool bulkUniformExtentFill = true;
+
+  /// Win 24: Item position notifications used getTransformTo(viewport) on
+  /// every child, walking the same sliver ancestors and allocating a Matrix4
+  /// each time. Compute the shared sliver-to-viewport transform once and
+  /// reuse a matrix for each child's direct paint transform instead.
+  /// Disable for in-process position parity and performance comparisons.
+  static bool shareItemPositionViewportTransform = true;
+
 }
