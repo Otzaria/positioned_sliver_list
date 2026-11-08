@@ -13,6 +13,9 @@ class SliverLayoutState {
   bool layoutRelevantResize = false;
   int? extentRevision;
   bool? precalculateExtents;
+
+  /// First appearance in the viewport's layout pass; null until laid out.
+  int? firstLayoutOrder;
 }
 
 class LayoutPass {
@@ -33,19 +36,31 @@ class LayoutPass {
 
   final sliversDuringLayout = <RenderSuperSliverList>[];
 
+  /// Records the first appearance of a sliver in this layout pass.
+  ///
+  /// Reuse the existing per-sliver state map rather than allocating a second
+  /// map every frame. This avoids an O(n) indexOf scan for each delayed sliver.
+  void recordLaidOutSliver(RenderSuperSliverList sliver) {
+    final state = getLayoutState(sliver);
+    if (state.firstLayoutOrder != null) return;
+    state.firstLayoutOrder = sliversDuringLayout.length;
+    sliversDuringLayout.add(sliver);
+  }
+
+  /// The first-layout order, or -1 when this sliver has not laid out.
+  int layoutOrderOf(RenderSuperSliverList sliver) =>
+      _sliverLayoutState[sliver]?.firstLayoutOrder ?? -1;
+
   /// Returns whether provided sliver is laid out before a sliver with active
   /// scroll offset estimation. If there is no sliver with active scroll offset
   /// estimation, returns false.
   bool sliverIsBeforeSliverWithOffsetEstimation(RenderSuperSliverList s) {
-    assert(sliversDuringLayout.contains(s));
+    assert(layoutOrderOf(s) >= 0);
     if (sliverWithOffsetEstimation == null) {
       return false;
     }
-    final index = sliversDuringLayout.indexOf(sliverWithOffsetEstimation!);
-    return index ==
-            -1 // not reached yet
-            ||
-        index > sliversDuringLayout.indexOf(s);
+    final index = layoutOrderOf(sliverWithOffsetEstimation!);
+    return index == -1 || index > layoutOrderOf(s);
   }
 
   SliverLayoutState getLayoutState(RenderSuperSliverList sliver) {
@@ -133,9 +148,7 @@ extension RenderSliverLayoutPass on RenderSliver {
         _viewportToLayoutPass[viewport] = null;
       });
     }
-    if (!pass.sliversDuringLayout.contains(self)) {
-      pass.sliversDuringLayout.add(self);
-    }
+    pass.recordLaidOutSliver(self);
     return pass;
   }
 }
