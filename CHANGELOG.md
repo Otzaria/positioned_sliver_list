@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.5
 
 * Apply zero- or negative-duration pixel and item animations immediately
   instead of completing successfully while leaving the scroll position behind.
@@ -8,6 +8,19 @@
   avoiding a Dart per-item loop and reusing the backing buffer. Win 22
   benchmarks cover large lists. A separate uniform-growth optimization was
   discarded because its benchmark showed no dependable improvement.
+
+* Cancel pending index navigation when pixel scrolling, dragging, the mouse
+  wheel or a trackpad takes control; preserve user scroll-offset notifications.
+* Honor the initial item position when an asynchronous list first loads from
+  empty, including separated lists and restored positions.
+* Keep overscroll reservations owned by the active animation and let animation
+  handles cancel a pending final correction without affecting a replacement.
+* Add logical keyed-item remapping to `SuperListView.separated` through
+  `findItemIndexCallback`, while preserving `findChildIndexCallback` behavior.
+* Guard structural extent updates during layout and release spare Fenwick
+  storage when a large list shrinks.
+* Cache first-layout order and share the viewport transform across item-position
+  reports, preserving geometry for RTL, reverse, pinned and kept-alive items.
 
 ## 0.2.4
 
