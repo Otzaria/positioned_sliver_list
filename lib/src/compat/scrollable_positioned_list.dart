@@ -712,9 +712,8 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
     return operation.whenComplete(() => --_programmaticOperations);
   }
 
-  // Pointer signals are resolved after dispatch, when the Scrollable moves
-  // the position. Keep the user-input marker through that synchronous
-  // resolution so wheel updates are not mistaken for programmatic updates.
+  // Pointer signals move Scrollable during synchronous resolution after dispatch.
+  // Keep the marker until then to distinguish wheel input from programmatic work.
   void _onPointerSignal(PointerSignalEvent event) {
     if (event is! PointerScrollEvent) return;
     _pointerScrollSignalActive = true;
@@ -1044,8 +1043,25 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
       overscrollToTarget: widget.overscrollToTarget,
     );
     return Listener(
-      onPointerDown: (_) => _cancelAnimations(),
-      onPointerSignal: _onPointerSignal,
+      onPointerDown: (_) {
+        _cancelAnimations();
+        // A queued index jump has no active scroll activity yet. Revoke its
+        // reveal owner when the user takes control, before the next layout.
+        _listController.cancelPositioning();
+      },
+      onPointerPanZoomStart: (_) {
+        // Desktop trackpads emit pan/zoom sequences rather than wheel signals.
+        // Preempt the pending reveal before the first scroll update/layout.
+        _cancelAnimations();
+        _listController.cancelPositioning();
+      },
+      onPointerSignal: (event) {
+        _onPointerSignal(event);
+        if (event is PointerScrollEvent) {
+          _cancelAnimations();
+          _listController.cancelPositioning();
+        }
+      },
       child: NotificationListener<ScrollUpdateNotification>(
         onNotification: _onScrollUpdate,
         child: CustomScrollView(
