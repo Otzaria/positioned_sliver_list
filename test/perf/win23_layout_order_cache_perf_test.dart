@@ -45,26 +45,38 @@ void _prepare() {
 
 int _scan(int count, {required bool indexed}) {
   final pass = _cases[count]!;
+  // Repeat small cases enough to avoid timing only a few microseconds. Keep
+  // larger cases bounded so the O(n²) baseline remains tractable.
+  final repetitions = switch (count) {
+    64 => 100,
+    256 => 20,
+    _ => 2,
+  };
   var checksum = 0;
-  for (final sliver in pass.slivers) {
-    checksum += indexed
-        ? pass.layoutOrderOf(sliver)
-        : pass.sliversDuringLayout.indexOf(sliver);
+  for (var run = 0; run < repetitions; run++) {
+    for (final sliver in pass.slivers) {
+      checksum += indexed
+          ? pass.layoutOrderOf(sliver)
+          : pass.sliversDuringLayout.indexOf(sliver);
+    }
   }
   return checksum;
 }
 
 void main() {
   setUpAll(_prepare);
-  test("Win 23: indexed vs linear per-sliver order lookups", () async {
-    final perf = PerfTester<int, int>(
-      testName: "Win 23: layout-pass sliver order",
-      testCases: [64, 256, 1024],
-      implementation1: (n) => _scan(n, indexed: false),
-      implementation2: (n) => _scan(n, indexed: true),
-      impl1Name: "repeated indexOf",
-      impl2Name: "per-pass index map",
-    );
-    await perf.run(warmupRuns: 5, benchmarkRuns: 25);
-  }, timeout: const Timeout(Duration(minutes: 10)));
+  // A large case must not hide a regression on a smaller viewport.
+  for (final size in [64, 256, 1024]) {
+    test("Win 23: layout-pass order ($size slivers)", () async {
+      final perf = PerfTester<int, int>(
+        testName: "Win 23: layout-pass order ($size)",
+        testCases: [size],
+        implementation1: (n) => _scan(n, indexed: false),
+        implementation2: (n) => _scan(n, indexed: true),
+        impl1Name: "repeated indexOf",
+        impl2Name: "cached first-layout order",
+      );
+      await perf.run(warmupRuns: 5, benchmarkRuns: 25);
+    }, timeout: const Timeout(Duration(minutes: 10)));
+  }
 }
