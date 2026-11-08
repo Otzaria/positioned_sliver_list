@@ -1,5 +1,4 @@
 import "package:flutter/material.dart";
-import "package:flutter/rendering.dart";
 import "package:flutter_test/flutter_test.dart";
 import "package:positioned_sliver_list/positioned_sliver_list.dart";
 import "package:positioned_sliver_list/src/element.dart";
