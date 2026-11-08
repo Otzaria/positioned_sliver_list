@@ -31,10 +31,7 @@ jobs:
         run: flutter pub get
 
       - name: dart format --set-exit-if-changed
-        run: |
-          dart format --output=write lib test example/lib
-          git diff -- test/super_sliver_list_separated_reorder_test.dart
-          git diff --exit-code -- lib test example/lib
+        run: dart format --output=none --set-exit-if-changed lib test example/lib
 
   line-endings:
     name: Line endings (no CRLF)
