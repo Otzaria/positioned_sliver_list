@@ -927,6 +927,9 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
       return Future<void>.value();
     }
     _cancelAnimations();
+    // A direct pixel scroll is newer than any unresolved index jump. Cancel
+    // its reveal owner before the next layout can apply that stale target.
+    _listController.cancelPositioning();
     final position = controller.position;
     final start = position.pixels;
     return _programmatic(() {
@@ -949,6 +952,7 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
       return;
     }
     _cancelAnimations();
+    _listController.cancelPositioning();
     final position = controller.position;
     ++_programmaticOperations;
     try {
