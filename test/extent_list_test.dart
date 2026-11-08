@@ -471,6 +471,50 @@ void main() {
       expect(list.indexForOffset(163839), 32767);
     });
 
+    test("large nonuniform prefix sums survive shrink and reused rebuilds", () {
+      final list = ExtentList();
+      const largeLength = 190760;
+
+      void verifyPrefixes(Iterable<int> indices) {
+        for (final index in indices) {
+          var expected = 0.0;
+          for (var i = 0; i < index; i++) {
+            expected += list[i];
+          }
+          expect(list.offsetForIndex(index), expected, reason: "index $index");
+        }
+      }
+
+      list.resize(
+        largeLength,
+        (index) => index == null ? 0 : (index % 13 + 1).toDouble(),
+      );
+      verifyPrefixes([0, 1, 1024, 65536, 190759, largeLength]);
+      final largeBuffer = list.debugFenwickTree!.debugBuffer;
+
+      list.refreshEstimates(
+        (index) => index == null ? 0 : (index % 7 + 3).toDouble(),
+      );
+      expect(list.debugFenwickTree, isNull);
+      list.resize(8192, (_) => 10);
+      expect(list.debugSpareFenwickCapacity, lessThan(largeLength ~/ 2));
+      verifyPrefixes([0, 1, 1024, 4096, 8191, 8192]);
+      expect(list.debugFenwickTree!.debugBuffer, isNot(same(largeBuffer)));
+
+      list.setExtent(4096, 24);
+      verifyPrefixes([4096, 4097, 8192]);
+      final trimmedBuffer = list.debugFenwickTree!.debugBuffer;
+      list.insertAt(200, (_) => 11);
+      verifyPrefixes([200, 201, 4097, 8193]);
+      expect(list.debugFenwickTree!.debugBuffer, same(trimmedBuffer));
+
+      list.resize(
+        16000,
+        (index) => index == null ? 0 : (index % 11 + 1).toDouble(),
+      );
+      verifyPrefixes([0, 201, 8193, 12000, 16000]);
+    });
+
     test("refresh rebuilds tree in place", () {
       final list = ExtentList();
       list.resize(10000, (_) => 10.0);
