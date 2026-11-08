@@ -156,6 +156,9 @@ class ExtentList {
       if (spare != null && spare.size > _extents.length) {
         spare.truncate(_extents.length);
       }
+    } else {
+      // Turning off reuse must also release any previously parked buffer.
+      _spareFenwickTree = null;
     }
     _fenwickTree = null;
   }
