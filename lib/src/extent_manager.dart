@@ -502,11 +502,15 @@ class ExtentManager with ChangeNotifier {
   int get numberOfItemsWithEstimatedExtent => _extentList.dirtyItemCount;
 
   void addItem(int index) {
+    _checkUnlocked();
+    RangeError.checkValueInInterval(index, 0, numberOfItems, "index");
     _extentList.insertAt(index, delegate.estimateExtentForItem);
     delegate.onMarkNeedsLayout();
   }
 
   void removeItem(int index) {
+    _checkUnlocked();
+    RangeError.checkValidIndex(index, _extentList, "index", numberOfItems);
     _extentList.removeAt(index);
     delegate.onMarkNeedsLayout();
   }
