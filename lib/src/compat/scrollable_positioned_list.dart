@@ -1020,6 +1020,12 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
         // reveal owner when the user takes control, before the next layout.
         _listController.cancelPositioning();
       },
+      onPointerPanZoomStart: (_) {
+        // Desktop trackpads emit pan/zoom sequences rather than wheel signals.
+        // Preempt the pending reveal before the first scroll update/layout.
+        _cancelAnimations();
+        _listController.cancelPositioning();
+      },
       onPointerSignal: (event) {
         if (event is PointerScrollEvent) {
           _cancelAnimations();
