@@ -562,6 +562,22 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
     return keys == null ? null : (_PageStorageSlot.anchor, keys);
   }
 
+  void _restoreSavedPosition() {
+    if (!widget.restorePosition) return;
+    final identifier = _storageIdentifier;
+    final saved = identifier == null
+        ? null
+        : PageStorage.maybeOf(
+            context,
+          )?.readState(context, identifier: identifier);
+    if (saved is (int, double)) {
+      _restoredPosition = saved;
+      _initialIndex = saved.$1;
+      _initialAlignment = 0;
+      _initialOffset = -saved.$2;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -569,20 +585,7 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
     _initialIndex = widget.initialScrollIndex;
     _initialAlignment = widget.initialAlignment;
     _initialOffset = widget.initialOffset;
-    if (widget.restorePosition) {
-      final identifier = _storageIdentifier;
-      final saved = identifier == null
-          ? null
-          : PageStorage.maybeOf(
-              context,
-            )?.readState(context, identifier: identifier);
-      if (saved is (int, double)) {
-        _restoredPosition = saved;
-        _initialIndex = saved.$1;
-        _initialAlignment = 0;
-        _initialOffset = -saved.$2;
-      }
-    }
+    _restoreSavedPosition();
     if (widget.itemCount > 0) {
       _initialIndex = _initialIndex.clamp(0, widget.itemCount - 1);
     }
@@ -618,6 +621,9 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
   void didUpdateWidget(ScrollablePositionedList oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.itemCount == 0 && widget.itemCount > 0) {
+      // An active list may have saved a newer anchor before briefly becoming
+      // empty. Use that anchor rather than its original initialScrollIndex.
+      _restoreSavedPosition();
       _initialIndex = _initialIndex.clamp(0, widget.itemCount - 1);
     }
     if (oldWidget.listController != widget.listController) {
