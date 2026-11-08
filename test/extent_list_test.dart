@@ -401,6 +401,120 @@ void main() {
   });
 
   group("allocations", () {
+    test("a discarded large tree is trimmed when a list becomes empty", () {
+      final list = ExtentList();
+      list.resize(190760, (_) => 50);
+      expect(list.offsetForIndex(190759), 9537950);
+      final original = list.debugFenwickTree!.debugBuffer;
+      expect(original.length, greaterThan(190760));
+
+      // A full refresh discards the tree for later reuse. A book can then
+      // become empty without any new offset query ever rebuilding that tree.
+      list.refreshEstimates((index) => index == null ? 80 : 1);
+      expect(list.debugFenwickTree, isNull);
+      expect(list.debugSpareFenwickCapacity, greaterThanOrEqualTo(190760));
+
+      list.resize(0, (_) => 10);
+      expect(list.debugFenwickTree, isNull);
+      expect(list.debugSpareFenwickCapacity, lessThanOrEqualTo(15));
+
+      list.resize(4, (_) => 30);
+      expect(list.offsetForIndex(4), 120);
+      expect(list.indexForOffset(119), 3);
+    });
+
+    test("tail removals also release a discarded oversized tree", () {
+      final list = ExtentList();
+      list.resize(4096, (_) => 20);
+      list.offsetForIndex(4096);
+      list.refreshEstimates((index) => index == null ? 20 : 0);
+      expect(list.debugSpareFenwickCapacity, greaterThanOrEqualTo(4096));
+
+      for (var i = 0; i < 4096; i++) {
+        list.removeAt(list.length - 1);
+      }
+      expect(list.debugSpareFenwickCapacity, lessThanOrEqualTo(15));
+      expect(list.totalExtent, 0);
+      expect(list.indexForOffset(0), isNull);
+    });
+
+    test("disabling reuse discards an already parked spare", () {
+      final previous = SuperSliverListPerfFlags.reuseFenwickBuffer;
+      addTearDown(() => SuperSliverListPerfFlags.reuseFenwickBuffer = previous);
+      final list = ExtentList();
+      list.resize(4096, (_) => 10);
+      expect(list.offsetForIndex(4096), 40960);
+      list.refreshEstimates((_) => 20);
+      expect(list.debugSpareFenwickCapacity, greaterThanOrEqualTo(4096));
+
+      SuperSliverListPerfFlags.reuseFenwickBuffer = false;
+      list.resize(0, (_) => 10);
+      expect(list.debugSpareFenwickCapacity, isNull);
+      list.resize(4, (_) => 2);
+      expect(list.offsetForIndex(4), 8);
+    });
+
+    test("disabling reuse also releases a spare on the next offset query", () {
+      final previous = SuperSliverListPerfFlags.reuseFenwickBuffer;
+      addTearDown(() => SuperSliverListPerfFlags.reuseFenwickBuffer = previous);
+      final list = ExtentList();
+      list.resize(32768, (_) => 3);
+      expect(list.offsetForIndex(32768), 98304);
+      list.refreshEstimates((_) => 5);
+      expect(list.debugFenwickTree, isNull);
+      expect(list.debugSpareFenwickCapacity, greaterThanOrEqualTo(32768));
+
+      // No resize or mutation: the lookup must not strand the parked buffer.
+      SuperSliverListPerfFlags.reuseFenwickBuffer = false;
+      expect(list.offsetForIndex(32768), 163840);
+      expect(list.debugSpareFenwickCapacity, isNull);
+      expect(list.indexForOffset(163839), 32767);
+    });
+
+    test("large nonuniform prefix sums survive shrink and reused rebuilds", () {
+      final list = ExtentList();
+      const largeLength = 190760;
+
+      void verifyPrefixes(Iterable<int> indices) {
+        for (final index in indices) {
+          var expected = 0.0;
+          for (var i = 0; i < index; i++) {
+            expected += list[i];
+          }
+          expect(list.offsetForIndex(index), expected, reason: "index $index");
+        }
+      }
+
+      list.resize(
+        largeLength,
+        (index) => index == null ? 0 : (index % 13 + 1).toDouble(),
+      );
+      verifyPrefixes([0, 1, 1024, 65536, 190759, largeLength]);
+      final largeBuffer = list.debugFenwickTree!.debugBuffer;
+
+      list.refreshEstimates(
+        (index) => index == null ? 0 : (index % 7 + 3).toDouble(),
+      );
+      expect(list.debugFenwickTree, isNull);
+      list.resize(8192, (_) => 10);
+      expect(list.debugSpareFenwickCapacity, lessThan(largeLength ~/ 2));
+      verifyPrefixes([0, 1, 1024, 4096, 8191, 8192]);
+      expect(list.debugFenwickTree!.debugBuffer, isNot(same(largeBuffer)));
+
+      list.setExtent(4096, 24);
+      verifyPrefixes([4096, 4097, 8192]);
+      final trimmedBuffer = list.debugFenwickTree!.debugBuffer;
+      list.insertAt(200, (_) => 11);
+      verifyPrefixes([200, 201, 4097, 8193]);
+      expect(list.debugFenwickTree!.debugBuffer, same(trimmedBuffer));
+
+      list.resize(
+        16000,
+        (index) => index == null ? 0 : (index % 11 + 1).toDouble(),
+      );
+      verifyPrefixes([0, 201, 8193, 12000, 16000]);
+    });
+
     test("refresh rebuilds tree in place", () {
       final list = ExtentList();
       list.resize(10000, (_) => 10.0);

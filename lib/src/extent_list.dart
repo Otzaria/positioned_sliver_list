@@ -149,12 +149,25 @@ class ExtentList {
   void _invalidateFenwickTree() {
     if (SuperSliverListPerfFlags.reuseFenwickBuffer) {
       _spareFenwickTree = _fenwickTree ?? _spareFenwickTree;
+      // A discarded tree can remain alive across many frames while its list
+      // is empty or shrunk. Trim it now instead of retaining the old book's
+      // large offset index until the next offset query rebuilds the tree.
+      final spare = _spareFenwickTree;
+      if (spare != null && spare.size > _extents.length) {
+        spare.truncate(_extents.length);
+      }
+    } else {
+      // Turning off reuse must also release any previously parked buffer.
+      _spareFenwickTree = null;
     }
     _fenwickTree = null;
   }
 
   @visibleForTesting
   FenwickTree? get debugFenwickTree => _fenwickTree;
+
+  @visibleForTesting
+  int? get debugSpareFenwickCapacity => _spareFenwickTree?.capacity;
 
   @visibleForTesting
   int get debugCapacity => _extents.debugCapacity;
@@ -513,6 +526,11 @@ class ExtentList {
     final current = _fenwickTree;
     if (current == null || current.size != length) {
       final start = EstimateRefreshCounters.nowMicros;
+      // Reuse can be disabled after a refresh has already parked a large
+      // buffer. Clear it even when the next operation is a read-only query.
+      if (!SuperSliverListPerfFlags.reuseFenwickBuffer) {
+        _spareFenwickTree = null;
+      }
       final spare = SuperSliverListPerfFlags.reuseFenwickBuffer
           ? current ?? _spareFenwickTree
           : null;
