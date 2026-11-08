@@ -7,6 +7,7 @@ import "dart:async";
 import "dart:math" as math;
 
 import "package:flutter/foundation.dart";
+import "package:flutter/gestures.dart";
 import "package:flutter/rendering.dart";
 import "package:flutter/scheduler.dart";
 import "package:flutter/widgets.dart";
@@ -513,6 +514,7 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
   (int, double)? _restoredPosition;
   Object? _storageIdentifier;
   int _programmaticOperations = 0;
+  bool _pointerScrollSignalActive = false;
   AnimationHandle? _itemAnimation;
   TargetScrollAnimation? _offsetAnimation;
   List<ItemPosition> _lastPositions = const [];
@@ -701,6 +703,15 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
     return operation.whenComplete(() => --_programmaticOperations);
   }
 
+  // Pointer signals are resolved after dispatch, when the Scrollable moves
+  // the position. Keep the user-input marker through that synchronous
+  // resolution so wheel updates are not mistaken for programmatic updates.
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    _pointerScrollSignalActive = true;
+    scheduleMicrotask(() => _pointerScrollSignalActive = false);
+  }
+
   // Layout corrections (anchoring, exact landing) do not send scroll
   // notifications, so only real scrolling is reported.
   bool _onScrollUpdate(ScrollUpdateNotification notification) {
@@ -717,7 +728,8 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
     // drag must still be reported even during that short overlap.
     if (_programmaticOperations > 0 &&
         !listener.recordProgrammaticScrolls &&
-        notification.dragDetails == null) {
+        notification.dragDetails == null &&
+        !_pointerScrollSignalActive) {
       return false;
     }
     if (!listener._controller.isClosed) {
@@ -1019,6 +1031,7 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
     );
     return Listener(
       onPointerDown: (_) => _cancelAnimations(),
+      onPointerSignal: _onPointerSignal,
       child: NotificationListener<ScrollUpdateNotification>(
         onNotification: _onScrollUpdate,
         child: CustomScrollView(
