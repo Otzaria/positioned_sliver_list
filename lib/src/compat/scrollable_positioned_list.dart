@@ -585,9 +585,9 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
     }
     if (widget.itemCount > 0) {
       _initialIndex = _initialIndex.clamp(0, widget.itemCount - 1);
-    } else {
-      _initialIndex = 0;
     }
+    // Keep the requested index while the data is still empty. The first
+    // non-empty build should position it without displaying item zero first.
     widget.itemScrollController?._attach(this);
     widget.scrollOffsetController?._attach(this);
     _syncPositionsListener();
@@ -617,6 +617,9 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
   @override
   void didUpdateWidget(ScrollablePositionedList oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.itemCount == 0 && widget.itemCount > 0) {
+      _initialIndex = _initialIndex.clamp(0, widget.itemCount - 1);
+    }
     if (oldWidget.listController != widget.listController) {
       _cancelAnimations();
       _lastPositions = const [];
@@ -982,6 +985,11 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
         ? _targetRectResolver(widget.initialTargetRectResolver)
         : null;
     final list = SuperSliverList(
+      // An initial target is consumed by the render object even if the first
+      // frame has no children. Recreate that render object when items first
+      // arrive so the initial position applies during layout, before paint.
+      // Going empty also releases stale retained children and extent data.
+      key: ValueKey(widget.itemCount > 0),
       delegate: SliverChildBuilderDelegate(
         _buildChild,
         childCount: _childCount,
