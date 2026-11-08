@@ -73,16 +73,17 @@ void main() {
 
     await tester.pumpWidget(build(0));
     final outerState = tester.state(find.byType(ScrollablePositionedList));
-    final emptyRenderObject = tester.renderObject(
-      find.byType(SuperSliverList),
-    );
+    final emptyRenderObject = tester.renderObject(find.byType(SuperSliverList));
     expect(itemController.isAttached, isTrue);
     expect(offsetController.isAttached, isTrue);
     expect(itemController.listController, same(listController));
     expect(itemController.scrollController, same(scrollController));
 
     await tester.pumpWidget(build(160));
-    expect(tester.state(find.byType(ScrollablePositionedList)), same(outerState));
+    expect(
+      tester.state(find.byType(ScrollablePositionedList)),
+      same(outerState),
+    );
     expect(
       tester.renderObject(find.byType(SuperSliverList)),
       isNot(same(emptyRenderObject)),
@@ -158,9 +159,7 @@ void main() {
         await tester.pumpWidget(build(0));
         await tester.pumpWidget(build(180));
 
-        final viewport = tester.getRect(
-          find.byType(ScrollablePositionedList),
-        );
+        final viewport = tester.getRect(find.byType(ScrollablePositionedList));
         final target = tester.getRect(find.byKey(const ValueKey(35)));
         final growsRight = (direction == TextDirection.ltr) != reverse;
         if (growsRight) {
