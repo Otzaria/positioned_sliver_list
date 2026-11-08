@@ -438,6 +438,22 @@ void main() {
       expect(list.indexForOffset(0), isNull);
     });
 
+    test("disabling reuse discards an already parked spare", () {
+      final previous = SuperSliverListPerfFlags.reuseFenwickBuffer;
+      addTearDown(() => SuperSliverListPerfFlags.reuseFenwickBuffer = previous);
+      final list = ExtentList();
+      list.resize(4096, (_) => 10);
+      expect(list.offsetForIndex(4096), 40960);
+      list.refreshEstimates((_) => 20);
+      expect(list.debugSpareFenwickCapacity, greaterThanOrEqualTo(4096));
+
+      SuperSliverListPerfFlags.reuseFenwickBuffer = false;
+      list.resize(0, (_) => 10);
+      expect(list.debugSpareFenwickCapacity, isNull);
+      list.resize(4, (_) => 2);
+      expect(list.offsetForIndex(4), 8);
+    });
+
     test("refresh rebuilds tree in place", () {
       final list = ExtentList();
       list.resize(10000, (_) => 10.0);
