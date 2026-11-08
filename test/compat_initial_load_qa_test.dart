@@ -306,6 +306,43 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets("active scroll future completes when the keyed sliver is reset", (
+    tester,
+  ) async {
+    final controller = ItemScrollController();
+    final listController = ListController();
+    Widget build(int count) => _list(
+      count: count,
+      controller: controller,
+      listController: listController,
+    );
+
+    await tester.pumpWidget(build(160));
+    final scroll = controller.scrollTo(
+      index: 120,
+      duration: const Duration(seconds: 2),
+    );
+    await tester.pump(const Duration(milliseconds: 80));
+    var completed = false;
+    scroll.then((_) => completed = true);
+    expect(completed, isFalse);
+
+    await tester.pumpWidget(build(0));
+    await tester.pump();
+    expect(completed, isTrue);
+    expect(controller.isAttached, isTrue);
+    expect(listController.isAttached, isTrue);
+
+    await tester.pumpWidget(build(160));
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey(35))).dy,
+      closeTo(106, 1),
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    listController.dispose();
+  });
+
   testWidgets("pending jump future completes when keyed sliver goes empty", (
     tester,
   ) async {
