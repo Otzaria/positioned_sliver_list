@@ -514,6 +514,7 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
   (int, double)? _restoredPosition;
   Object? _storageIdentifier;
   int _programmaticOperations = 0;
+  bool _pointerScrollSignalActive = false;
   AnimationHandle? _itemAnimation;
   TargetScrollAnimation? _offsetAnimation;
   List<ItemPosition> _lastPositions = const [];
@@ -711,6 +712,14 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
     return operation.whenComplete(() => --_programmaticOperations);
   }
 
+  // Pointer signals move Scrollable during synchronous resolution after dispatch.
+  // Keep the marker until then to distinguish wheel input from programmatic work.
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    _pointerScrollSignalActive = true;
+    scheduleMicrotask(() => _pointerScrollSignalActive = false);
+  }
+
   // Layout corrections (anchoring, exact landing) do not send scroll
   // notifications, so only real scrolling is reported.
   bool _onScrollUpdate(ScrollUpdateNotification notification) {
@@ -722,7 +731,13 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
         delta == 0) {
       return false;
     }
-    if (_programmaticOperations > 0 && !listener.recordProgrammaticScrolls) {
+    // An active programmatic future can outlive the scroll activity it
+    // started (for example while an exact landing awaits layout). A user's
+    // drag must still be reported even during that short overlap.
+    if (_programmaticOperations > 0 &&
+        !listener.recordProgrammaticScrolls &&
+        notification.dragDetails == null &&
+        !_pointerScrollSignalActive) {
       return false;
     }
     if (!listener._controller.isClosed) {
@@ -1041,6 +1056,7 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
         _listController.cancelPositioning();
       },
       onPointerSignal: (event) {
+        _onPointerSignal(event);
         if (event is PointerScrollEvent) {
           _cancelAnimations();
           _listController.cancelPositioning();
