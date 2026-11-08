@@ -129,5 +129,4 @@ abstract final class SuperSliverListPerfFlags {
   /// reuse a matrix for each child's direct paint transform instead.
   /// Disable for in-process position parity and performance comparisons.
   static bool shareItemPositionViewportTransform = true;
-
 }
