@@ -1,4 +1,3 @@
-import "package:flutter/gestures.dart";
 import "package:flutter/material.dart";
 import "package:flutter_test/flutter_test.dart";
 import "package:positioned_sliver_list/positioned_list.dart";
@@ -48,7 +47,10 @@ void main() {
       metrics: metrics,
       context: context,
       scrollDelta: 35,
-      dragDetails: const DragUpdateDetails(delta: Offset(0, -35)),
+      dragDetails: DragUpdateDetails(
+        delta: const Offset(0, -35),
+        globalPosition: const Offset(0, 100),
+      ),
     ).dispatch(context);
 
     await tester.pump();
