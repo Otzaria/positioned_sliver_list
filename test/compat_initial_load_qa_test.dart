@@ -161,7 +161,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets("separated PageStorage anchor survives a same-State empty reload", (
+  testWidgets("separated storage anchor survives same-State empty reload", (
     tester,
   ) async {
     final bucket = PageStorageBucket();
@@ -306,7 +306,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets("active scroll future completes when the keyed sliver is reset", (
+  testWidgets("active scroll future completes when keyed sliver resets", (
     tester,
   ) async {
     final controller = ItemScrollController();
