@@ -524,6 +524,26 @@ void main() {
       expect(_leading(tester, 9000), closeTo(0, 0.01));
     });
 
+    testWidgets("zero-duration animation skips distant items", (tester) async {
+      await tester.pumpWidget(h.build());
+      h.built.clear();
+
+      final handle = h.listController.animateToItem(
+        index: () => 20000,
+        scrollController: h.scrollController,
+        alignment: 0,
+        duration: (_) => Duration.zero,
+        curve: (_) => Curves.linear,
+      );
+      await tester.pumpAndSettle();
+      await handle;
+
+      expect(_leading(tester, 20000), closeTo(0, 0.01));
+      expect(h.built.toSet().length, lessThan(120));
+      expect(h.built.where((i) => i > 1000 && i < 19000), isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets("animateToItem returns a future", (tester) async {
       await tester.pumpWidget(h.build());
       var done = false;

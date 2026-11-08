@@ -117,4 +117,9 @@ abstract final class SuperSliverListPerfFlags {
   /// more than twice the current capacity reserves at most the required size
   /// plus 1/16 instead; smaller growth still doubles.
   static bool nearExactLargeGrowth = true;
+
+  /// Win 22: A full refresh of uniform estimates fills the typed-data
+  /// buffer directly and calculates the total without a Dart per-item loop.
+  /// Disable to compare the previous implementation in perf tests.
+  static bool bulkUniformExtentFill = true;
 }

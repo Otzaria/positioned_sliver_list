@@ -1,3 +1,14 @@
+## Unreleased
+
+* Apply zero- or negative-duration pixel and item animations immediately
+  instead of completing successfully while leaving the scroll position behind.
+  A zero-duration fallback no longer calls Flutter's positive-duration-only
+  `ScrollPosition.animateTo`.
+* Bulk-fill typed-data extents during a full refresh with a uniform estimate,
+  avoiding a Dart per-item loop and reusing the backing buffer. Win 22
+  benchmarks cover large lists. A separate uniform-growth optimization was
+  discarded because its benchmark showed no dependable improvement.
+
 ## 0.2.4
 
 * Keep the content after a list in place when an estimate refresh changes the

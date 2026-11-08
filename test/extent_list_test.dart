@@ -57,6 +57,40 @@ void main() {
     });
   });
   group("ExtentList", () {
+    test("bulk uniform estimate refresh preserves offsets and dirty state", () {
+      for (final optimized in [false, true]) {
+        final previous = SuperSliverListPerfFlags.bulkUniformExtentFill;
+        SuperSliverListPerfFlags.bulkUniformExtentFill = optimized;
+        try {
+          final list = ExtentList();
+          list.resize(20000, (index) => index == null ? 0 : 20.0);
+          list.setExtent(17, 35);
+          expect(list.hasDirtyItems, isTrue);
+          // A full refresh must discard measured sizes, but reuse the
+          // existing Fenwick backing storage on the next offset lookup.
+          final oldTree = list.offsetForIndex(19999);
+          expect(oldTree, greaterThan(0));
+          final buffer = list.debugFenwickTree!.debugBuffer;
+          var perItemCalls = 0;
+          list.refreshEstimates((index) {
+            if (index == null) return 35;
+            perItemCalls++;
+            return 1;
+          });
+          expect(perItemCalls, 0);
+          expect(list.totalExtent, 700000);
+          expect(list.dirtyItemCount, 20000);
+          expect(list.offsetForIndex(19999), 699965);
+          expect(list.debugFenwickTree!.debugBuffer, same(buffer));
+          list.setExtent(17, 25);
+          expect(list.totalExtent, 699990);
+          expect(list.offsetForIndex(18), 620);
+        } finally {
+          SuperSliverListPerfFlags.bulkUniformExtentFill = previous;
+        }
+      }
+    });
+
     test("empty", () {
       final extentList = ExtentList();
       expect(extentList.totalExtent, equals(0.0));
