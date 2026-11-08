@@ -127,4 +127,56 @@ void main() {
     expect(find.text("Item 1500"), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets("RTL horizontal wheel keeps working with a scrollbar", (
+    tester,
+  ) async {
+    final controller = ItemScrollController();
+    final scroll = ScrollController();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 400,
+            height: 200,
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Scrollbar(
+                controller: scroll,
+                thumbVisibility: true,
+                child: ScrollablePositionedList.builder(
+                  itemScrollController: controller,
+                  scrollController: scroll,
+                  scrollDirection: Axis.horizontal,
+                  initialScrollIndex: 5,
+                  itemCount: 2000,
+                  estimateExtent: (_, _) => 40,
+                  itemBuilder: (_, index) => SizedBox(
+                    width: 40,
+                    child: Text("Item $index"),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final before = scroll.offset;
+    final pending = controller.jumpToAsync(index: 1500);
+    await tester.sendEventToBinding(
+      const PointerScrollEvent(
+        position: Offset(200, 100),
+        scrollDelta: Offset(-80, 0),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await pending;
+    expect(scroll.hasClients, isTrue);
+    expect(find.byType(Scrollbar), findsOneWidget);
+    expect((scroll.offset - before).abs(), closeTo(80, 0.1));
+    expect(find.text("Item 1500"), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }
