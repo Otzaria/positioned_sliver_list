@@ -117,6 +117,106 @@ void main() {
     scrollController.dispose();
   });
 
+  testWidgets("live PageStorage anchor survives a same-State empty reload", (
+    tester,
+  ) async {
+    final bucket = PageStorageBucket();
+    final controller = ItemScrollController();
+    Widget build(int count) => _list(
+      count: count,
+      controller: controller,
+      initialIndex: 4,
+      alignment: 0,
+      offset: 0,
+      restorePosition: true,
+      bucket: bucket,
+    );
+
+    await tester.pumpWidget(build(160));
+    final outerState = tester.state(find.byType(ScrollablePositionedList));
+    final jump = controller.jumpToAsync(index: 71, offset: -12);
+    await tester.pump();
+    await jump;
+    await tester.pump();
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey(71))).dy,
+      closeTo(-12, 1),
+    );
+
+    await tester.pumpWidget(build(0));
+    expect(
+      tester.state(find.byType(ScrollablePositionedList)),
+      same(outerState),
+    );
+    await tester.pumpWidget(build(160));
+    expect(
+      tester.state(find.byType(ScrollablePositionedList)),
+      same(outerState),
+    );
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey(71))).dy,
+      closeTo(-12, 1),
+    );
+    expect(find.byKey(const ValueKey(4)), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets("separated PageStorage anchor survives a same-State empty reload", (
+    tester,
+  ) async {
+    final bucket = PageStorageBucket();
+    final controller = ItemScrollController();
+    Widget build(int count) => MaterialApp(
+      home: PageStorage(
+        bucket: bucket,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 400,
+            height: 400,
+            child: ScrollablePositionedList.separated(
+              key: const PageStorageKey<String>("async-separated-reader"),
+              itemCount: count,
+              itemScrollController: controller,
+              initialScrollIndex: 4,
+              restorePosition: true,
+              estimatedSeparatorExtent: 10,
+              itemBuilder: (_, index) => SizedBox(
+                height: 40,
+                child: Text("Item $index", key: ValueKey(index)),
+              ),
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(build(160));
+    final outerState = tester.state(find.byType(ScrollablePositionedList));
+    final jump = controller.jumpToAsync(index: 71, offset: -12);
+    await tester.pump();
+    await jump;
+    await tester.pump();
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey(71))).dy,
+      closeTo(-12, 1),
+    );
+
+    await tester.pumpWidget(build(0));
+    await tester.pumpWidget(build(160));
+    expect(
+      tester.state(find.byType(ScrollablePositionedList)),
+      same(outerState),
+    );
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey(71))).dy,
+      closeTo(-12, 1),
+    );
+    expect(find.byKey(const ValueKey(4)), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets("restores a PageStorage anchor after loading through empty", (
     tester,
   ) async {
