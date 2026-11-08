@@ -33,19 +33,34 @@ class LayoutPass {
 
   final sliversDuringLayout = <RenderSuperSliverList>[];
 
+  // A viewport can have many separate slivers. Keep first-layout indices
+  // alongside the ordered list so repeated correction passes do not perform
+  // a linear indexOf search for every sliver (quadratic overall).
+  final _layoutOrder = <RenderSuperSliverList, int>{};
+
+  /// Records a sliver at most once, preserving its first order in this pass.
+  void recordLaidOutSliver(RenderSuperSliverList sliver) {
+    _layoutOrder.putIfAbsent(sliver, () {
+      final order = sliversDuringLayout.length;
+      sliversDuringLayout.add(sliver);
+      return order;
+    });
+  }
+
+  /// The first-layout order, or -1 when this sliver has not laid out.
+  int layoutOrderOf(RenderSuperSliverList sliver) =>
+      _layoutOrder[sliver] ?? -1;
+
   /// Returns whether provided sliver is laid out before a sliver with active
   /// scroll offset estimation. If there is no sliver with active scroll offset
   /// estimation, returns false.
   bool sliverIsBeforeSliverWithOffsetEstimation(RenderSuperSliverList s) {
-    assert(sliversDuringLayout.contains(s));
+    assert(layoutOrderOf(s) >= 0);
     if (sliverWithOffsetEstimation == null) {
       return false;
     }
-    final index = sliversDuringLayout.indexOf(sliverWithOffsetEstimation!);
-    return index ==
-            -1 // not reached yet
-            ||
-        index > sliversDuringLayout.indexOf(s);
+    final index = layoutOrderOf(sliverWithOffsetEstimation!);
+    return index == -1 || index > layoutOrderOf(s);
   }
 
   SliverLayoutState getLayoutState(RenderSuperSliverList sliver) {
@@ -133,9 +148,7 @@ extension RenderSliverLayoutPass on RenderSliver {
         _viewportToLayoutPass[viewport] = null;
       });
     }
-    if (!pass.sliversDuringLayout.contains(self)) {
-      pass.sliversDuringLayout.add(self);
-    }
+    pass.recordLaidOutSliver(self);
     return pass;
   }
 }
