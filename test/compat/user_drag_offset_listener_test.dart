@@ -131,7 +131,10 @@ void main() {
 
     await tester.pump();
     await pendingJump;
-    expect(received.fold<double>(0, (sum, delta) => sum + delta), closeTo(80, 0.1));
+    expect(
+      received.fold<double>(0, (sum, delta) => sum + delta),
+      closeTo(80, 0.1),
+    );
     expect(tester.takeException(), isNull);
   });
 }
