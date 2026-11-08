@@ -5,6 +5,7 @@
 @Tags(["perf"])
 library;
 
+import "package:flutter/foundation.dart";
 import "package:flutter_test/flutter_test.dart";
 import "package:positioned_sliver_list/src/layout_pass.dart";
 import "package:positioned_sliver_list/src/render_object.dart";
@@ -12,6 +13,10 @@ import "package:positioned_sliver_list/src/render_object.dart";
 import "perf_tester.dart";
 
 class _StubSliver implements RenderSuperSliverList {
+  @override
+  String toString({DiagnosticLevel minLevel = DiagnosticLevel.info}) =>
+      "_StubSliver";
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
