@@ -454,6 +454,23 @@ void main() {
       expect(list.offsetForIndex(4), 8);
     });
 
+    test("disabling reuse also releases a spare on the next offset query", () {
+      final previous = SuperSliverListPerfFlags.reuseFenwickBuffer;
+      addTearDown(() => SuperSliverListPerfFlags.reuseFenwickBuffer = previous);
+      final list = ExtentList();
+      list.resize(32768, (_) => 3);
+      expect(list.offsetForIndex(32768), 98304);
+      list.refreshEstimates((_) => 5);
+      expect(list.debugFenwickTree, isNull);
+      expect(list.debugSpareFenwickCapacity, greaterThanOrEqualTo(32768));
+
+      // No resize or mutation: the lookup must not strand the parked buffer.
+      SuperSliverListPerfFlags.reuseFenwickBuffer = false;
+      expect(list.offsetForIndex(32768), 163840);
+      expect(list.debugSpareFenwickCapacity, isNull);
+      expect(list.indexForOffset(163839), 32767);
+    });
+
     test("refresh rebuilds tree in place", () {
       final list = ExtentList();
       list.resize(10000, (_) => 10.0);
