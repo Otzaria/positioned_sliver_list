@@ -98,6 +98,11 @@ class SuperListView extends BoxScrollView {
   /// Creates a [SuperListView] with "items" separated by list item "separators".
   ///
   /// See [ListView.separated] for details.
+  ///
+  /// [findItemIndexCallback] accepts logical item indices, excluding
+  /// separators. Use it for keyed, reorderable data so child state survives
+  /// moves. [findChildIndexCallback] retains its Flutter-compatible behavior
+  /// and must return interleaved child indices.
   SuperListView.separated({
     super.key,
     super.scrollDirection,
@@ -109,6 +114,7 @@ class SuperListView extends BoxScrollView {
     super.padding,
     required NullableIndexedWidgetBuilder itemBuilder,
     ChildIndexGetter? findChildIndexCallback,
+    ChildIndexGetter? findItemIndexCallback,
     required IndexedWidgetBuilder separatorBuilder,
     required int itemCount,
     bool addAutomaticKeepAlives = true,
@@ -132,6 +138,10 @@ class SuperListView extends BoxScrollView {
     this.initialTargetRectResolver,
     this.overscrollToTarget = OverscrollToTarget.none,
   }) : assert(itemCount >= 0),
+       assert(
+         findItemIndexCallback == null || findChildIndexCallback == null,
+         "Provide either findItemIndexCallback or findChildIndexCallback.",
+       ),
        childrenDelegate = SliverChildBuilderDelegate(
          (BuildContext context, int index) {
            final int itemIndex = index ~/ 2;
@@ -140,7 +150,12 @@ class SuperListView extends BoxScrollView {
            }
            return separatorBuilder(context, itemIndex);
          },
-         findChildIndexCallback: findChildIndexCallback,
+         findChildIndexCallback: findItemIndexCallback == null
+             ? findChildIndexCallback
+             : (key) {
+                 final itemIndex = findItemIndexCallback(key);
+                 return itemIndex == null ? null : itemIndex * 2;
+               },
          childCount: _computeActualChildCount(itemCount),
          addAutomaticKeepAlives: addAutomaticKeepAlives,
          addRepaintBoundaries: addRepaintBoundaries,
