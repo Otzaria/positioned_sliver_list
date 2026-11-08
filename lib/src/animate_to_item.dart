@@ -102,6 +102,14 @@ class TargetScrollAnimation {
       _finish(false);
       return;
     }
+    // A zero-length animation is an immediate scroll, not a completed
+    // no-op. Handle it before the far-distance pre-jump and the fallback
+    // ScrollPosition.animateTo (which requires a positive duration).
+    if (duration <= Duration.zero) {
+      position.jumpTo(initialTarget);
+      _finish(true);
+      return;
+    }
     final delegate = position;
     if (delegate is! ScrollActivityDelegate) {
       position
@@ -115,10 +123,6 @@ class TargetScrollAnimation {
     final distance = initialTarget - position.pixels;
     if (viewport > 0 && distance.abs() > farDistance * viewport) {
       position.jumpTo(initialTarget - distance.sign * nearDistance * viewport);
-    }
-    if (duration <= Duration.zero) {
-      _finish(true);
-      return;
     }
     final activity = _TargetScrollActivity(
       delegate as ScrollActivityDelegate,
