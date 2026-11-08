@@ -71,6 +71,39 @@ void main() {
     });
   }
 
+  test("separated maps item and separator keys with the right convention", () {
+    final legacy = SuperListView.separated(
+      itemCount: 3,
+      itemBuilder: (_, _) => const SizedBox.shrink(),
+      separatorBuilder: (_, _) => const SizedBox.shrink(),
+      findChildIndexCallback: (key) {
+        if (key == const ValueKey("separator")) {
+          return 3;
+        }
+        return key == const ValueKey("item") ? 4 : null;
+      },
+    );
+    expect(
+      legacy.childrenDelegate.findIndexByKey(const ValueKey("separator")),
+      3,
+    );
+    expect(legacy.childrenDelegate.findIndexByKey(const ValueKey("item")), 4);
+
+    final logical = SuperListView.separated(
+      itemCount: 3,
+      itemBuilder: (_, _) => const SizedBox.shrink(),
+      separatorBuilder: (_, _) => const SizedBox.shrink(),
+      findItemIndexCallback: (key) {
+        return key == const ValueKey("item") ? 2 : null;
+      },
+    );
+    expect(
+      logical.childrenDelegate.findIndexByKey(const ValueKey("separator")),
+      isNull,
+    );
+    expect(logical.childrenDelegate.findIndexByKey(const ValueKey("item")), 4);
+  });
+
   test("separated cannot accept both index callback conventions", () {
     expect(
       () => SuperListView.separated(
