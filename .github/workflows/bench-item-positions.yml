@@ -1,0 +1,31 @@
+name: Visible item position benchmark
+
+on:
+  pull_request:
+    paths:
+      - 'lib/src/render_object.dart'
+      - 'lib/src/perf_flags.dart'
+      - 'test/item_position_transform_parity_test.dart'
+      - 'test/perf/win24_item_positions_transform_perf_test.dart'
+      - '.github/workflows/bench-item-positions.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: Item position transform (long lists)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.2'
+      - name: flutter pub get
+        run: flutter pub get
+      - name: Verify transform parity across directions and nested slivers
+        run: flutter test --reporter expanded test/item_position_transform_parity_test.dart
+      - name: Compare per-child and shared transforms
+        run: flutter test --reporter expanded --tags perf test/perf/win24_item_positions_transform_perf_test.dart

@@ -1478,11 +1478,27 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
       return const [];
     }
     final result = <ItemPosition>[];
+    // The viewport ancestry is common to all visible children. Factor it
+    // out once per notification and reuse the child transform matrix, rather
+    // than allocating and walking the same ancestor chain for every item.
+    final sharedTransform =
+        SuperSliverListPerfFlags.shareItemPositionViewportTransform
+        ? getTransformTo(viewport)
+        : null;
+    final childTransform = sharedTransform == null ? null : Matrix4.identity();
     for (var c = firstChild; c != null; c = childAfter(c)) {
       if (!c.hasSize) {
         continue;
       }
-      final origin = c.localToGlobal(Offset.zero, ancestor: viewport);
+      final Offset origin;
+      if (sharedTransform == null) {
+        origin = c.localToGlobal(Offset.zero, ancestor: viewport);
+      } else {
+        final transform = childTransform!;
+        transform.setFrom(sharedTransform);
+        applyPaintTransform(c, transform);
+        origin = MatrixUtils.transformPoint(transform, Offset.zero);
+      }
       final double leading;
       final double extent;
       switch (axisDirection) {
