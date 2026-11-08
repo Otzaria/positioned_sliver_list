@@ -33,7 +33,6 @@ jobs:
       - name: dart format --set-exit-if-changed
         run: dart format --output=none --set-exit-if-changed lib test example/lib
 
-
   line-endings:
     name: Line endings (no CRLF)
     runs-on: ubuntu-24.04
