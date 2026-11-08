@@ -41,15 +41,9 @@ class ResizableFloat64List {
       return;
     }
     _ensureCapacity(newSize);
-    if (SuperSliverListPerfFlags.bulkUniformExtentFill) {
-      if (newSize > _length) {
-        _list.fillRange(_length, newSize, defaultValue);
-      }
-    } else {
-      final list = _list;
-      for (var i = _length; i < newSize; ++i) {
-        list[i] = defaultValue;
-      }
+    final list = _list;
+    for (var i = _length; i < newSize; ++i) {
+      list[i] = defaultValue;
     }
     _length = newSize;
     _maybeTrim();
