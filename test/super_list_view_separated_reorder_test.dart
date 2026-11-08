@@ -19,59 +19,56 @@ class _TrackedRowState extends State<_TrackedRow> {
 
 void main() {
   for (final logicalCallback in [false, true]) {
-    testWidgets(
-      "separated keyed reordering retains state "
-      "with ${logicalCallback ? 'item' : 'child'} index callback",
-      (tester) async {
-        var ids = List<int>.generate(12, (index) => index);
-        late StateSetter update;
-        Widget build() => MaterialApp(
-          home: SizedBox(
-            width: 400,
-            height: 700,
-            child: StatefulBuilder(
-              builder: (_, setState) {
-                update = setState;
-                int? indexForKey(Key key) {
-                  final id = (key as ValueKey<int>).value;
-                  final index = ids.indexOf(id);
-                  return index < 0 ? null : index;
-                }
+    testWidgets("separated keyed reordering retains state "
+        "with ${logicalCallback ? 'item' : 'child'} index callback", (
+      tester,
+    ) async {
+      var ids = List<int>.generate(12, (index) => index);
+      late StateSetter update;
+      Widget build() => MaterialApp(
+        home: SizedBox(
+          width: 400,
+          height: 700,
+          child: StatefulBuilder(
+            builder: (_, setState) {
+              update = setState;
+              int? indexForKey(Key key) {
+                final id = (key as ValueKey<int>).value;
+                final index = ids.indexOf(id);
+                return index < 0 ? null : index;
+              }
 
-                return SuperListView.separated(
-                  itemCount: ids.length,
-                  findItemIndexCallback: logicalCallback ? indexForKey : null,
-                  findChildIndexCallback: logicalCallback
-                      ? null
-                      : (key) {
-                          final index = indexForKey(key);
-                          return index == null ? null : index * 2;
-                        },
-                  itemBuilder: (_, index) => _TrackedRow(
-                    key: ValueKey(ids[index]),
-                    id: ids[index],
-                  ),
-                  separatorBuilder: (_, _) => const SizedBox(height: 2),
-                );
-              },
-            ),
+              return SuperListView.separated(
+                itemCount: ids.length,
+                findItemIndexCallback: logicalCallback ? indexForKey : null,
+                findChildIndexCallback: logicalCallback
+                    ? null
+                    : (key) {
+                        final index = indexForKey(key);
+                        return index == null ? null : index * 2;
+                      },
+                itemBuilder: (_, index) =>
+                    _TrackedRow(key: ValueKey(ids[index]), id: ids[index]),
+                separatorBuilder: (_, _) => const SizedBox(height: 2),
+              );
+            },
           ),
-        );
+        ),
+      );
 
-        await tester.pumpWidget(build());
-        final target = find.byKey(const ValueKey(3));
-        final originalState = tester.state<_TrackedRowState>(target);
-        update(() {
-          ids.remove(3);
-          ids.insert(8, 3);
-        });
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(build());
+      final target = find.byKey(const ValueKey(3));
+      final originalState = tester.state<_TrackedRowState>(target);
+      update(() {
+        ids.remove(3);
+        ids.insert(8, 3);
+      });
+      await tester.pumpAndSettle();
 
-        expect(tester.state<_TrackedRowState>(target), same(originalState));
-        expect(find.text("Item 3"), findsOneWidget);
-        expect(tester.takeException(), isNull);
-      },
-    );
+      expect(tester.state<_TrackedRowState>(target), same(originalState));
+      expect(find.text("Item 3"), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   }
 
   test("separated cannot accept both index callback conventions", () {
