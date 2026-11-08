@@ -401,6 +401,44 @@ void main() {
   });
 
   group("allocations", () {
+    test("a discarded large tree is trimmed when a list becomes empty", () {
+      final list = ExtentList();
+      list.resize(190760, (_) => 50);
+      expect(list.offsetForIndex(190759), 9537950);
+      final original = list.debugFenwickTree!.debugBuffer;
+      expect(original.length, greaterThan(190760));
+
+      // A full refresh discards the tree for later reuse. A book can then
+      // become empty without any new offset query ever rebuilding that tree.
+      list.refreshEstimates((index) => index == null ? 80 : 1);
+      expect(list.debugFenwickTree, isNull);
+      expect(list.debugSpareFenwickCapacity, greaterThan(190760));
+
+      list.resize(0, (_) => 10);
+      expect(list.debugFenwickTree, isNull);
+      expect(list.debugSpareFenwickCapacity, lessThanOrEqualTo(15));
+
+      list.resize(4, (_) => 30);
+      expect(list.offsetForIndex(4), 120);
+      expect(list.indexForOffset(119), 3);
+    });
+
+    test("tail removals also release a discarded oversized tree", () {
+      final list = ExtentList();
+      list.resize(4096, (_) => 20);
+      list.offsetForIndex(4096);
+      list.refreshEstimates((index) => index == null ? 20 : 0);
+      expect(list.debugSpareFenwickCapacity, greaterThan(4096));
+
+      for (var i = 0; i < 4096; i++) {
+        list.removeAt(list.length - 1);
+      }
+      expect(list.debugSpareFenwickCapacity, lessThanOrEqualTo(15));
+      expect(list.totalExtent, 0);
+      expect(list.indexForOffset(0), isNull);
+    });
+
+
     test("refresh rebuilds tree in place", () {
       final list = ExtentList();
       list.resize(10000, (_) => 10.0);
