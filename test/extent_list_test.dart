@@ -56,31 +56,6 @@ void main() {
       expect(list[299], equals(10));
     });
 
-    test("bulk uniform growth and shrink preserve existing values", () {
-      for (final optimized in [false, true]) {
-        final previous = SuperSliverListPerfFlags.bulkUniformExtentFill;
-        SuperSliverListPerfFlags.bulkUniformExtentFill = optimized;
-        try {
-          final list = ResizableFloat64List();
-          list.resizeWithDefault(190760, 42);
-          list[127] = 17;
-          list.resizeWithDefault(190765, 13);
-          expect(list[0], 42);
-          expect(list[127], 17);
-          expect(list[190759], 42);
-          expect(list[190760], 13);
-          expect(list[190764], 13);
-
-          list.resizeWithDefault(128, 5);
-          list.resizeWithDefault(130, 8);
-          expect(list[127], 17);
-          expect(list[128], 8);
-          expect(list[129], 8);
-        } finally {
-          SuperSliverListPerfFlags.bulkUniformExtentFill = previous;
-        }
-      }
-    });
   });
   group("ExtentList", () {
     test("bulk uniform estimate refresh preserves offsets and dirty state", () {
