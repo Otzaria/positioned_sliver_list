@@ -55,7 +55,6 @@ void main() {
       expect(list[0], equals(10));
       expect(list[299], equals(10));
     });
-
   });
   group("ExtentList", () {
     test("bulk uniform estimate refresh preserves offsets and dirty state", () {
