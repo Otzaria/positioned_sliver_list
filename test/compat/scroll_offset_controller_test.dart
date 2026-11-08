@@ -102,6 +102,56 @@ void main() {
     expect(newOffset - originalOffest, scrollDistance);
   });
 
+  testWidgets('Pixel jump supersedes an unresolved index jump', (
+    WidgetTester tester,
+  ) async {
+    final itemController = ItemScrollController();
+    final offsetController = ScrollOffsetController();
+    await setUpWidgetTest(
+      tester,
+      itemScrollController: itemController,
+      scrollOffsetController: offsetController,
+      initialIndex: 5,
+    );
+
+    final controller = itemController.scrollController!;
+    final before = controller.offset;
+    final staleJump = itemController.jumpToAsync(index: 450);
+    // Both requests happen before the next layout. The newer pixel jump wins.
+    offsetController.jumpBy(40);
+    await tester.pumpAndSettle();
+    await staleJump;
+
+    expect(controller.offset, closeTo(before + 40, tolerance));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Pixel animation supersedes an unresolved index jump', (
+    WidgetTester tester,
+  ) async {
+    final itemController = ItemScrollController();
+    final offsetController = ScrollOffsetController();
+    await setUpWidgetTest(
+      tester,
+      itemScrollController: itemController,
+      scrollOffsetController: offsetController,
+      initialIndex: 5,
+    );
+
+    final controller = itemController.scrollController!;
+    final before = controller.offset;
+    final staleJump = itemController.jumpToAsync(index: 450);
+    final animation = offsetController.animateScroll(
+      offset: 60,
+      duration: const Duration(milliseconds: 400),
+    );
+    await tester.pumpAndSettle();
+    await Future.wait([staleJump, animation]);
+
+    expect(controller.offset, closeTo(before + 60, tolerance));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Programtically scroll left 50 pixels', (
     WidgetTester tester,
   ) async {
