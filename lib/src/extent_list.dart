@@ -272,13 +272,20 @@ class ExtentList {
       );
     }
     try {
-      var total = 0.0;
-      for (var index = 0; index < length; index++) {
-        final extent = uniform > 0 ? uniform : estimate(index);
-        _extents[index] = extent;
-        total += extent;
+      if (uniform > 0 && SuperSliverListPerfFlags.bulkUniformExtentFill) {
+        // A uniform estimate needs neither per-item callbacks nor a Dart
+        // accumulation loop. Keep the existing backing buffer in place.
+        _extents._list.fillRange(0, length, uniform);
+        _totalExtent = uniform * length;
+      } else {
+        var total = 0.0;
+        for (var index = 0; index < length; index++) {
+          final extent = uniform > 0 ? uniform : estimate(index);
+          _extents[index] = extent;
+          total += extent;
+        }
+        _totalExtent = total;
       }
-      _totalExtent = total;
       _invalidateFenwickTree();
       markAllDirty();
     } finally {
