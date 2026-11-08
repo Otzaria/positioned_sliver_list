@@ -1191,13 +1191,13 @@ class RenderSuperSliverList extends RenderSliverMultiBoxAdaptor
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final pass = _delayedLayoutPass!;
       _delayedLayoutPass = null;
-      final thisIndex = pass.sliversDuringLayout.indexOf(this);
+      final thisIndex = pass.layoutOrderOf(this);
       // When scheduling layout pass, make sure that all slivers laid out after this
       // also get their layout invalidated. This is necessary because this sliver layout
       // may change precedingScrollExtent of slivers after. Preceding scroll extent is used
       // during correction for jump to index estimation.
       for (final s in pass.slivers) {
-        final theirIndex = pass.sliversDuringLayout.indexOf(s);
+        final theirIndex = pass.layoutOrderOf(s);
         if (theirIndex == -1 || theirIndex >= thisIndex) {
           s._markNeedsLayoutWithAncestors();
         }
