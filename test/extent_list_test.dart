@@ -438,7 +438,6 @@ void main() {
       expect(list.indexForOffset(0), isNull);
     });
 
-
     test("refresh rebuilds tree in place", () {
       final list = ExtentList();
       list.resize(10000, (_) => 10.0);
