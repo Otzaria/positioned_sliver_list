@@ -1,4 +1,5 @@
 import "package:flutter/material.dart";
+import "package:flutter/rendering.dart";
 import "package:flutter_test/flutter_test.dart";
 import "package:positioned_sliver_list/positioned_sliver_list.dart";
 import "package:positioned_sliver_list/src/element.dart";
@@ -70,7 +71,9 @@ void main() {
 
     // First tick initializes the clock; the next one finishes the ticker.
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 301));
+    // Stop before layout so the ticker-completion microtask can schedule
+    // its final jump without letting that jump settle in this same frame.
+    await tester.pump(const Duration(milliseconds: 301), EnginePhase.build);
     expect(render.hasPendingTarget, isTrue);
     expect(handle.isAnimating, isTrue, reason: "final reveal still pending");
     expect(element.extentManager.revealOwner, isNotNull);
@@ -102,7 +105,9 @@ void main() {
     );
 
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 301));
+    // Stop before layout so the ticker-completion microtask can schedule
+    // its final jump without letting that jump settle in this same frame.
+    await tester.pump(const Duration(milliseconds: 301), EnginePhase.build);
     expect(render.hasPendingTarget, isTrue);
 
     final latest = list.scrollToIndex(
