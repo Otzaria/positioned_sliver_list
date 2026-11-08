@@ -215,17 +215,46 @@ class _ScrollToIndex implements PositioningOperation {
   }
 }
 
-class _CompletedOperation implements PositioningOperation {
-  _CompletedOperation(this.done);
+/// A non-animated jump returned from scrollToIndex (e.g. zero duration).
+/// Cancelling its handle must still revoke a pending reveal and settle done.
+class _JumpToIndexOperation implements PositioningOperation {
+  _JumpToIndexOperation({
+    required Future<void> future,
+    required this.delegate,
+    required this.owner,
+  }) {
+    future.then(
+      (_) => _complete(),
+      onError: (Object error, StackTrace stack) {
+        if (!_completer.isCompleted) {
+          _completer.completeError(error, stack);
+        }
+      },
+    );
+  }
+
+  final ExtentManager? delegate;
+  final Object? owner;
+  final _completer = Completer<void>();
 
   @override
-  final Future<void> done;
+  Future<void> get done => _completer.future;
 
   @override
   bool get isAnimating => false;
 
   @override
-  void cancel() {}
+  void cancel() {
+    if (_completer.isCompleted) return;
+    if (owner != null && identical(delegate?.revealOwner, owner)) {
+      delegate!.cancelReveal(owner);
+    }
+    _complete();
+  }
+
+  void _complete() {
+    if (!_completer.isCompleted) _completer.complete();
+  }
 }
 
 /// Whether a jump to an index may leave blank space where the content does
@@ -440,14 +469,17 @@ class ListController extends ChangeNotifier {
         !position.hasPixels ||
         !position.hasContentDimensions ||
         duration <= Duration.zero) {
+      final jump = jumpToIndex(
+        index,
+        alignment: alignment,
+        offset: offset,
+        targetRectResolver: targetRectResolver,
+      );
       return AnimationHandle._([
-        _CompletedOperation(
-          jumpToIndex(
-            index,
-            alignment: alignment,
-            offset: offset,
-            targetRectResolver: targetRectResolver,
-          ),
+        _JumpToIndexOperation(
+          future: jump,
+          delegate: _delegate,
+          owner: _delegate?.revealOwner,
         ),
       ]);
     }
