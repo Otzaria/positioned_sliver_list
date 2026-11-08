@@ -524,10 +524,7 @@ void main() {
       expect(_leading(tester, 9000), closeTo(0, 0.01));
     });
 
-    testWidgets(
-      "zero-duration animateToItem lands on a distant item without "
-      "building intermediate children",
-      (tester) async {
+    testWidgets("zero-duration animation skips distant items", (tester) async {
         await tester.pumpWidget(h.build());
         h.built.clear();
 
@@ -545,8 +542,7 @@ void main() {
         expect(h.built.toSet().length, lessThan(120));
         expect(h.built.where((i) => i > 1000 && i < 19000), isEmpty);
         expect(tester.takeException(), isNull);
-      },
-    );
+    });
 
     testWidgets("animateToItem returns a future", (tester) async {
       await tester.pumpWidget(h.build());
