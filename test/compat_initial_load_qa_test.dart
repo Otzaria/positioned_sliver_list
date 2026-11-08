@@ -79,7 +79,9 @@ void main() {
     expect(itemController.scrollController, same(scrollController));
 
     await tester.pumpWidget(build(160));
-    final populatedRenderObject = tester.renderObject(find.byType(SuperSliverList));
+    final populatedRenderObject = tester.renderObject(
+      find.byType(SuperSliverList),
+    );
     expect(
       tester.state(find.byType(ScrollablePositionedList)),
       same(outerState),
