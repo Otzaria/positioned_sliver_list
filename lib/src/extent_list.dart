@@ -149,12 +149,22 @@ class ExtentList {
   void _invalidateFenwickTree() {
     if (SuperSliverListPerfFlags.reuseFenwickBuffer) {
       _spareFenwickTree = _fenwickTree ?? _spareFenwickTree;
+      // A discarded tree can remain alive across many frames while its list
+      // is empty or shrunk. Trim it now instead of retaining the old book's
+      // large offset index until the next offset query rebuilds the tree.
+      final spare = _spareFenwickTree;
+      if (spare != null && spare.size > _extents.length) {
+        spare.truncate(_extents.length);
+      }
     }
     _fenwickTree = null;
   }
 
   @visibleForTesting
   FenwickTree? get debugFenwickTree => _fenwickTree;
+
+  @visibleForTesting
+  int? get debugSpareFenwickCapacity => _spareFenwickTree?.capacity;
 
   @visibleForTesting
   int get debugCapacity => _extents.debugCapacity;
