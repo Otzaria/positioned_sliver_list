@@ -956,10 +956,14 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
   /// widgets.
   ///
   /// See [SliverList.separated] for details.
+  ///
+  /// [findItemIndexCallback] uses logical item indices; the older
+  /// [findChildIndexCallback] uses interleaved item-and-separator indices.
   SuperSliverList.separated({
     super.key,
     required NullableIndexedWidgetBuilder itemBuilder,
     ChildIndexGetter? findChildIndexCallback,
+    ChildIndexGetter? findItemIndexCallback,
     required NullableIndexedWidgetBuilder separatorBuilder,
     this.extentPrecalculationPolicy,
     this.listController,
@@ -978,7 +982,11 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
     bool addAutomaticKeepAlives = true,
     bool addRepaintBoundaries = true,
     bool addSemanticIndexes = true,
-  }) : super(
+  }) : assert(
+         findItemIndexCallback == null || findChildIndexCallback == null,
+         "Provide either findItemIndexCallback or findChildIndexCallback.",
+       ),
+       super(
          delegate: SliverChildBuilderDelegate(
            (BuildContext context, int index) {
              final int itemIndex = index ~/ 2;
@@ -996,7 +1004,12 @@ class SuperSliverList extends SliverMultiBoxAdaptorWidget {
              }
              return widget;
            },
-           findChildIndexCallback: findChildIndexCallback,
+           findChildIndexCallback: findItemIndexCallback == null
+               ? findChildIndexCallback
+               : (key) {
+                   final itemIndex = findItemIndexCallback(key);
+                   return itemIndex == null ? null : itemIndex * 2;
+                 },
            childCount: itemCount == null
                ? null
                : math.max(0, itemCount * 2 - 1),

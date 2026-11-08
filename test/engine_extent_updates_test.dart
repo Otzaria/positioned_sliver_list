@@ -210,6 +210,36 @@ void main() {
     );
   });
 
+  testWidgets("structural updates are rejected during child layout", (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      h.build(
+        duringBuild: () {
+          expect(() => h.list.addItem(0), throwsStateError);
+          expect(() => h.list.removeItem(0), throwsStateError);
+        },
+      ),
+    );
+    expect(h.list.numberOfItems, 10000);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets("structural updates validate bounds before changing extents", (
+    tester,
+  ) async {
+    await tester.pumpWidget(h.build());
+    final count = h.list.numberOfItems;
+    final extent = h.list.totalExtent;
+    expect(() => h.list.addItem(-1), throwsRangeError);
+    expect(() => h.list.addItem(count + 1), throwsRangeError);
+    expect(() => h.list.removeItem(-1), throwsRangeError);
+    expect(() => h.list.removeItem(count), throwsRangeError);
+    expect(h.list.numberOfItems, count);
+    expect(h.list.totalExtent, extent);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets("scroll pixels include leading padding", (tester) async {
     await tester.pumpWidget(h.build(padding: const EdgeInsets.only(top: 30)));
     expect(h.list.indexForScrollOffset(0), isNull);
