@@ -1,0 +1,28 @@
+name: Uniform extent performance regression
+
+on:
+  pull_request:
+    paths:
+      - 'lib/src/extent_list.dart'
+      - 'lib/src/perf_flags.dart'
+      - 'test/perf/win22_bulk_uniform_extents_perf_test.dart'
+      - '.github/workflows/bench-uniform-extents.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: Uniform extents (190k / 1m items)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.2'
+      - name: flutter pub get
+        run: flutter pub get
+      - name: Compare original and optimized uniform extents
+        run: flutter test --reporter expanded --tags perf test/perf/win22_bulk_uniform_extents_perf_test.dart
