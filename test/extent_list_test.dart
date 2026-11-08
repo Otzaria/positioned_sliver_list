@@ -55,8 +55,68 @@ void main() {
       expect(list[0], equals(10));
       expect(list[299], equals(10));
     });
+
+    test("bulk uniform growth and shrink preserve existing values", () {
+      for (final optimized in [false, true]) {
+        final previous = SuperSliverListPerfFlags.bulkUniformExtentFill;
+        SuperSliverListPerfFlags.bulkUniformExtentFill = optimized;
+        try {
+          final list = ResizableFloat64List();
+          list.resizeWithDefault(190760, 42);
+          list[127] = 17;
+          list.resizeWithDefault(190765, 13);
+          expect(list[0], 42);
+          expect(list[127], 17);
+          expect(list[190759], 42);
+          expect(list[190760], 13);
+          expect(list[190764], 13);
+
+          list.resizeWithDefault(128, 5);
+          list.resizeWithDefault(130, 8);
+          expect(list[127], 17);
+          expect(list[128], 8);
+          expect(list[129], 8);
+        } finally {
+          SuperSliverListPerfFlags.bulkUniformExtentFill = previous;
+        }
+      }
+    });
   });
   group("ExtentList", () {
+    test("bulk uniform estimate refresh preserves offsets and dirty state", () {
+      for (final optimized in [false, true]) {
+        final previous = SuperSliverListPerfFlags.bulkUniformExtentFill;
+        SuperSliverListPerfFlags.bulkUniformExtentFill = optimized;
+        try {
+          final list = ExtentList();
+          list.resize(20000, (index) => index == null ? 0 : 20.0);
+          list.setExtent(17, 35);
+          expect(list.hasDirtyItems, isTrue);
+          // A full refresh must discard measured sizes, but reuse the
+          // existing Fenwick backing storage on the next offset lookup.
+          final oldTree = list.offsetForIndex(19999);
+          expect(oldTree, greaterThan(0));
+          final buffer = list.debugFenwickTree!.debugBuffer;
+          var perItemCalls = 0;
+          list.refreshEstimates((index) {
+            if (index == null) return 35;
+            perItemCalls++;
+            return 1;
+          });
+          expect(perItemCalls, 0);
+          expect(list.totalExtent, 700000);
+          expect(list.dirtyItemCount, 20000);
+          expect(list.offsetForIndex(19999), 699965);
+          expect(list.debugFenwickTree!.debugBuffer, same(buffer));
+          list.setExtent(17, 25);
+          expect(list.totalExtent, 699990);
+          expect(list.offsetForIndex(18), 620);
+        } finally {
+          SuperSliverListPerfFlags.bulkUniformExtentFill = previous;
+        }
+      }
+    });
+
     test("empty", () {
       final extentList = ExtentList();
       expect(extentList.totalExtent, equals(0.0));
