@@ -48,8 +48,7 @@ class LayoutPass {
   }
 
   /// The first-layout order, or -1 when this sliver has not laid out.
-  int layoutOrderOf(RenderSuperSliverList sliver) =>
-      _layoutOrder[sliver] ?? -1;
+  int layoutOrderOf(RenderSuperSliverList sliver) => _layoutOrder[sliver] ?? -1;
 
   /// Returns whether provided sliver is laid out before a sliver with active
   /// scroll offset estimation. If there is no sliver with active scroll offset
