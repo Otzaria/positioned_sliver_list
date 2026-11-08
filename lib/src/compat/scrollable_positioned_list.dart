@@ -712,7 +712,12 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
         delta == 0) {
       return false;
     }
-    if (_programmaticOperations > 0 && !listener.recordProgrammaticScrolls) {
+    // An active programmatic future can outlive the scroll activity it
+    // started (for example while an exact landing awaits layout). A user's
+    // drag must still be reported even during that short overlap.
+    if (_programmaticOperations > 0 &&
+        !listener.recordProgrammaticScrolls &&
+        notification.dragDetails == null) {
       return false;
     }
     if (!listener._controller.isClosed) {
