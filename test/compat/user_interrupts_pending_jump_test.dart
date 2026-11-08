@@ -152,10 +152,8 @@ void main() {
                   initialScrollIndex: 5,
                   itemCount: 2000,
                   estimateExtent: (_, _) => 40,
-                  itemBuilder: (_, index) => SizedBox(
-                    width: 40,
-                    child: Text("Item $index"),
-                  ),
+                  itemBuilder: (_, index) =>
+                      SizedBox(width: 40, child: Text("Item $index")),
                 ),
               ),
             ),
