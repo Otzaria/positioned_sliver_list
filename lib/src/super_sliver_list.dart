@@ -160,8 +160,14 @@ class _ScrollToIndex implements PositioningOperation {
     _animation = animation;
     animation.done.then((_) {
       final delegate = controller._delegate;
-      delegate?.delegate.holdOverscrollSpace = false;
-      if (animation.reachedTarget && _isCurrent && delegate != null) {
+      // An old animation's future may complete after its replacement has
+      // already reserved blank space. It must not release the new owner's
+      // hold or schedule an old target's final correction.
+      final isCurrent = _isCurrent;
+      if (isCurrent) {
+        delegate?.delegate.holdOverscrollSpace = false;
+      }
+      if (animation.reachedTarget && isCurrent && delegate != null) {
         delegate.delegate
             .jumpToIndex(
               index,
@@ -178,6 +184,12 @@ class _ScrollToIndex implements PositioningOperation {
 
   @override
   void cancel() {
+    if (_isCurrent) {
+      // An animation can already have started its exact final jump while the
+      // handle is still pending. Revoke that reveal as well as the ticker.
+      controller._delegate?.cancelReveal(owner);
+      controller._delegate?.delegate.holdOverscrollSpace = false;
+    }
     final animation = _animation;
     if (animation != null && animation.isAnimating) {
       animation.cancel();
@@ -451,6 +463,9 @@ class ListController extends ChangeNotifier {
   /// that has reached its target but has not yet corrected estimated extents.
   void cancelPositioning() {
     _delegate?.cancelReveal();
+    // Release an existing hold immediately; any replacement animation below
+    // acquires its own hold. Stale completion callbacks cannot release it.
+    _delegate?.delegate.holdOverscrollSpace = false;
     for (final animation in _animations.toList()) {
       animation.cancel();
     }
