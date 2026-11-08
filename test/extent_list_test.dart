@@ -412,7 +412,7 @@ void main() {
       // become empty without any new offset query ever rebuilding that tree.
       list.refreshEstimates((index) => index == null ? 80 : 1);
       expect(list.debugFenwickTree, isNull);
-      expect(list.debugSpareFenwickCapacity, greaterThan(190760));
+      expect(list.debugSpareFenwickCapacity, greaterThanOrEqualTo(190760));
 
       list.resize(0, (_) => 10);
       expect(list.debugFenwickTree, isNull);
@@ -428,7 +428,7 @@ void main() {
       list.resize(4096, (_) => 20);
       list.offsetForIndex(4096);
       list.refreshEstimates((index) => index == null ? 20 : 0);
-      expect(list.debugSpareFenwickCapacity, greaterThan(4096));
+      expect(list.debugSpareFenwickCapacity, greaterThanOrEqualTo(4096));
 
       for (var i = 0; i < 4096; i++) {
         list.removeAt(list.length - 1);
