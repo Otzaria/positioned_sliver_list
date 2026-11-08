@@ -7,6 +7,7 @@ import "dart:async";
 import "dart:math" as math;
 
 import "package:flutter/foundation.dart";
+import "package:flutter/gestures.dart";
 import "package:flutter/rendering.dart";
 import "package:flutter/scheduler.dart";
 import "package:flutter/widgets.dart";
@@ -1013,7 +1014,18 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList> {
       overscrollToTarget: widget.overscrollToTarget,
     );
     return Listener(
-      onPointerDown: (_) => _cancelAnimations(),
+      onPointerDown: (_) {
+        _cancelAnimations();
+        // A queued index jump has no active scroll activity yet. Revoke its
+        // reveal owner when the user takes control, before the next layout.
+        _listController.cancelPositioning();
+      },
+      onPointerSignal: (event) {
+        if (event is PointerScrollEvent) {
+          _cancelAnimations();
+          _listController.cancelPositioning();
+        }
+      },
       child: NotificationListener<ScrollUpdateNotification>(
         onNotification: _onScrollUpdate,
         child: CustomScrollView(
