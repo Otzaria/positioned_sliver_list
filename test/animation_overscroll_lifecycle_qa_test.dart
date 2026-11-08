@@ -83,6 +83,8 @@ void main() {
     expect(element.extentManager.revealOwner, isNull);
     expect(render.holdOverscrollSpace, isFalse);
     final stoppedAt = scroll.offset;
+    // A build-only pump leaves dirty layout without a scheduled frame.
+    tester.binding.scheduleFrame();
 
     await tester.pumpAndSettle();
     await handle;
