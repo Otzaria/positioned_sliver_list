@@ -70,10 +70,7 @@ void main() {
   // Report timings by size: a 1m-item case must not hide a 190k regression.
   for (final size in _sizes) {
     test("Win 22: uniform estimate refresh ($size items)", () async {
-      expect(
-        _refresh(size, optimized: false),
-        _refresh(size, optimized: true),
-      );
+      expect(_refresh(size, optimized: false), _refresh(size, optimized: true));
       final perf = PerfTester<int, double>(
         testName: "Win 22: uniform estimate refresh ($size)",
         testCases: [size],
@@ -86,10 +83,7 @@ void main() {
     }, timeout: const Timeout(Duration(minutes: 10)));
 
     test("Win 22: uniform list growth ($size items)", () async {
-      expect(
-        _resize(size, optimized: false),
-        _resize(size, optimized: true),
-      );
+      expect(_resize(size, optimized: false), _resize(size, optimized: true));
       final perf = PerfTester<int, double>(
         testName: "Win 22: uniform list growth ($size)",
         testCases: [size],
