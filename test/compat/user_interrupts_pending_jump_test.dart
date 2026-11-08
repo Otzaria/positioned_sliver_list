@@ -39,10 +39,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     await pending;
-    expect(
-      controller.scrollController!.offset,
-      closeTo(before + 60, 0.1),
-    );
+    expect(controller.scrollController!.offset, closeTo(before + 60, 0.1));
     expect(find.byKey(const ValueKey(1500)), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -62,10 +59,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     await pending;
-    expect(
-      controller.scrollController!.offset,
-      closeTo(before + 80, 0.1),
-    );
+    expect(controller.scrollController!.offset, closeTo(before + 80, 0.1));
     expect(find.byKey(const ValueKey(1500)), findsNothing);
     expect(tester.takeException(), isNull);
   });
