@@ -124,6 +124,50 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets("zero-duration handle cancels pending jump and resolves", (
+    tester,
+  ) async {
+    await tester.pumpWidget(host());
+    final render = tester.renderObject<RenderSuperSliverList>(
+      find.byType(SuperSliverList),
+    );
+    final element =
+        tester.element(find.byType(SuperSliverList))
+            as SuperSliverMultiBoxAdaptorElement;
+    final handle = list.scrollToIndex(119, duration: Duration.zero);
+    expect(render.hasPendingTarget, isTrue);
+    expect(element.extentManager.revealOwner, isNotNull);
+
+    handle.cancel();
+    expect(element.extentManager.revealOwner, isNull);
+    await handle;
+    await tester.pumpAndSettle();
+    expect(render.hasPendingTarget, isFalse);
+    expect(scroll.offset, closeTo(0, 0.01));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets("old zero-duration handle cannot cancel replacement jump", (
+    tester,
+  ) async {
+    await tester.pumpWidget(host());
+    final old = list.scrollToIndex(119, duration: Duration.zero);
+    final latest = list.scrollToIndex(
+      0,
+      alignment: 0.4,
+      duration: Duration.zero,
+    );
+    old.cancel();
+
+    await tester.pumpAndSettle();
+    await Future.wait([old, latest]);
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey(0))).dy,
+      closeTo(240, 0.01),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   for (final direction in [TextDirection.ltr, TextDirection.rtl]) {
     for (final reverse in [false, true]) {
       testWidgets(
