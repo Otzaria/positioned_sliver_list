@@ -19,7 +19,9 @@ class _StatefulRowState extends State<_StatefulRow> {
 
 void main() {
   for (final logical in [false, true]) {
-    testWidgets("separated sliver keyed remap logical=$logical", (tester) async {
+    testWidgets("separated sliver keyed remap logical=$logical", (
+      tester,
+    ) async {
       final ids = List<int>.generate(12, (index) => index);
       late StateSetter rebuild;
 
