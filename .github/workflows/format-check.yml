@@ -1,8 +1,11 @@
 name: Format Check
 
 # Runs for every push and pull request.
+# Pull-request branch pushes otherwise queue duplicate checks (push + PR).
+# Keep push validation for main and explicit workflow_dispatch for other refs.
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
