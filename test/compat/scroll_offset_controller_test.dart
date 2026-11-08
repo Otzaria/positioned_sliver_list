@@ -102,6 +102,54 @@ void main() {
     expect(newOffset - originalOffest, scrollDistance);
   });
 
+  testWidgets('Zero-duration animateScroll applies the requested offset', (
+    WidgetTester tester,
+  ) async {
+    final scrollOffsetController = ScrollOffsetController();
+    await setUpWidgetTest(
+      tester,
+      scrollOffsetController: scrollOffsetController,
+      initialIndex: 5,
+    );
+
+    final before = tester.getTopLeft(find.text('Item 5')).dy;
+    await scrollOffsetController.animateScroll(
+      offset: -50,
+      duration: Duration.zero,
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getTopLeft(find.text('Item 5')).dy - before,
+      closeTo(50, tolerance),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Negative-duration animateScroll is an immediate scroll', (
+    WidgetTester tester,
+  ) async {
+    final scrollOffsetController = ScrollOffsetController();
+    await setUpWidgetTest(
+      tester,
+      scrollOffsetController: scrollOffsetController,
+      initialIndex: 5,
+    );
+
+    final before = tester.getTopLeft(find.text('Item 5')).dy;
+    await scrollOffsetController.animateScroll(
+      offset: -50,
+      duration: const Duration(microseconds: -1),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getTopLeft(find.text('Item 5')).dy - before,
+      closeTo(50, tolerance),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Programtically scroll left 50 pixels', (
     WidgetTester tester,
   ) async {
