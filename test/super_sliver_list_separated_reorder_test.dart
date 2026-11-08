@@ -20,7 +20,7 @@ class _StatefulRowState extends State<_StatefulRow> {
 void main() {
   for (final logical in [false, true]) {
     testWidgets("separated sliver keyed remap logical=$logical", (tester) async {
-      var ids = List<int>.generate(12, (index) => index);
+      final ids = List<int>.generate(12, (index) => index);
       late StateSetter rebuild;
 
       Widget build() => MaterialApp(
