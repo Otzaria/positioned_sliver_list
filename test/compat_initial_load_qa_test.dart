@@ -73,20 +73,16 @@ void main() {
 
     await tester.pumpWidget(build(0));
     final outerState = tester.state(find.byType(ScrollablePositionedList));
-    final emptyRenderObject = tester.renderObject(find.byType(SuperSliverList));
     expect(itemController.isAttached, isTrue);
     expect(offsetController.isAttached, isTrue);
     expect(itemController.listController, same(listController));
     expect(itemController.scrollController, same(scrollController));
 
     await tester.pumpWidget(build(160));
+    final populatedRenderObject = tester.renderObject(find.byType(SuperSliverList));
     expect(
       tester.state(find.byType(ScrollablePositionedList)),
       same(outerState),
-    );
-    expect(
-      tester.renderObject(find.byType(SuperSliverList)),
-      isNot(same(emptyRenderObject)),
     );
     expect(itemController.listController, same(listController));
     expect(itemController.scrollController, same(scrollController));
@@ -97,6 +93,20 @@ void main() {
       closeTo(106, 1),
     );
     expect(find.byKey(const ValueKey(0)), findsNothing);
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(build(0));
+    await tester.pumpWidget(build(160));
+    expect(
+      tester.renderObject(find.byType(SuperSliverList)),
+      isNot(same(populatedRenderObject)),
+    );
+    expect(
+      tester.state(find.byType(ScrollablePositionedList)),
+      same(outerState),
+    );
+    expect(itemController.listController, same(listController));
+    expect(itemController.scrollController, same(scrollController));
     expect(tester.takeException(), isNull);
 
     await tester.pumpWidget(const SizedBox.shrink());
