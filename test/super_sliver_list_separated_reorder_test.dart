@@ -47,10 +47,8 @@ void main() {
                             final index = indexForKey(key);
                             return index == null ? null : index * 2;
                           },
-                    itemBuilder: (_, index) => _StatefulRow(
-                      key: ValueKey(ids[index]),
-                      id: ids[index],
-                    ),
+                    itemBuilder: (_, index) =>
+                        _StatefulRow(key: ValueKey(ids[index]), id: ids[index]),
                     separatorBuilder: (_, _) => const SizedBox(height: 2),
                   ),
                 ],
