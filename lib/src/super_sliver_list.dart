@@ -119,6 +119,7 @@ class _ScrollToIndex implements PositioningOperation {
   final TargetRectResolver? targetRectResolver;
   final _completer = Completer<void>();
   TargetScrollAnimation? _animation;
+  Object? _finalCorrectionOwner;
 
   @override
   Future<void> get done => _completer.future;
@@ -168,14 +169,16 @@ class _ScrollToIndex implements PositioningOperation {
         delegate?.delegate.holdOverscrollSpace = false;
       }
       if (animation.reachedTarget && isCurrent && delegate != null) {
-        delegate.delegate
-            .jumpToIndex(
-              index,
-              alignment,
-              offset,
-              targetRectResolver: targetRectResolver,
-            )
-            .whenComplete(_complete);
+        // jumpToIndex starts a *new* reveal. Keep its owner so the original
+        // handle can cancel the exact layout correction before it lands.
+        final correction = delegate.delegate.jumpToIndex(
+          index,
+          alignment,
+          offset,
+          targetRectResolver: targetRectResolver,
+        );
+        _finalCorrectionOwner = delegate.revealOwner;
+        correction.whenComplete(_complete);
       } else {
         _complete();
       }
@@ -184,11 +187,17 @@ class _ScrollToIndex implements PositioningOperation {
 
   @override
   void cancel() {
-    if (_isCurrent) {
-      // An animation can already have started its exact final jump while the
-      // handle is still pending. Revoke that reveal as well as the ticker.
-      controller._delegate?.cancelReveal(owner);
-      controller._delegate?.delegate.holdOverscrollSpace = false;
+    if (_completer.isCompleted) return;
+    final delegate = controller._delegate;
+    final activeOwner = delegate?.revealOwner;
+    if (delegate != null &&
+        (identical(activeOwner, owner) ||
+            (_finalCorrectionOwner != null &&
+                identical(activeOwner, _finalCorrectionOwner)))) {
+      // Once the ticker finishes, jumpToIndex has a different reveal owner.
+      // Cancel whichever stage this handle still owns, but not a replacement.
+      delegate.cancelReveal(activeOwner);
+      delegate.delegate.holdOverscrollSpace = false;
     }
     final animation = _animation;
     if (animation != null && animation.isAnimating) {
