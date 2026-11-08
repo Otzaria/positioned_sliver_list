@@ -526,6 +526,11 @@ class ExtentList {
     final current = _fenwickTree;
     if (current == null || current.size != length) {
       final start = EstimateRefreshCounters.nowMicros;
+      // Reuse can be disabled after a refresh has already parked a large
+      // buffer. Clear it even when the next operation is a read-only query.
+      if (!SuperSliverListPerfFlags.reuseFenwickBuffer) {
+        _spareFenwickTree = null;
+      }
       final spare = SuperSliverListPerfFlags.reuseFenwickBuffer
           ? current ?? _spareFenwickTree
           : null;
