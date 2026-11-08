@@ -23,7 +23,7 @@ void main() {
         "with ${logicalCallback ? 'item' : 'child'} index callback", (
       tester,
     ) async {
-      var ids = List<int>.generate(12, (index) => index);
+      final ids = List<int>.generate(12, (index) => index);
       late StateSetter update;
       Widget build() => MaterialApp(
         home: SizedBox(
