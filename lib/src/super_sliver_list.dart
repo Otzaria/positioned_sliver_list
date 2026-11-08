@@ -119,6 +119,7 @@ class _ScrollToIndex implements PositioningOperation {
   final TargetRectResolver? targetRectResolver;
   final _completer = Completer<void>();
   TargetScrollAnimation? _animation;
+  Object? _finalCorrectionOwner;
 
   @override
   Future<void> get done => _completer.future;
@@ -160,16 +161,24 @@ class _ScrollToIndex implements PositioningOperation {
     _animation = animation;
     animation.done.then((_) {
       final delegate = controller._delegate;
-      delegate?.delegate.holdOverscrollSpace = false;
-      if (animation.reachedTarget && _isCurrent && delegate != null) {
-        delegate.delegate
-            .jumpToIndex(
-              index,
-              alignment,
-              offset,
-              targetRectResolver: targetRectResolver,
-            )
-            .whenComplete(_complete);
+      // An old animation's future may complete after its replacement has
+      // already reserved blank space. It must not release the new owner's
+      // hold or schedule an old target's final correction.
+      final isCurrent = _isCurrent;
+      if (isCurrent) {
+        delegate?.delegate.holdOverscrollSpace = false;
+      }
+      if (animation.reachedTarget && isCurrent && delegate != null) {
+        // jumpToIndex starts a *new* reveal. Keep its owner so the original
+        // handle can cancel the exact layout correction before it lands.
+        final correction = delegate.delegate.jumpToIndex(
+          index,
+          alignment,
+          offset,
+          targetRectResolver: targetRectResolver,
+        );
+        _finalCorrectionOwner = delegate.revealOwner;
+        correction.whenComplete(_complete);
       } else {
         _complete();
       }
@@ -178,6 +187,18 @@ class _ScrollToIndex implements PositioningOperation {
 
   @override
   void cancel() {
+    if (_completer.isCompleted) return;
+    final delegate = controller._delegate;
+    final activeOwner = delegate?.revealOwner;
+    if (delegate != null &&
+        (identical(activeOwner, owner) ||
+            (_finalCorrectionOwner != null &&
+                identical(activeOwner, _finalCorrectionOwner)))) {
+      // Once the ticker finishes, jumpToIndex has a different reveal owner.
+      // Cancel whichever stage this handle still owns, but not a replacement.
+      delegate.cancelReveal(activeOwner);
+      delegate.delegate.holdOverscrollSpace = false;
+    }
     final animation = _animation;
     if (animation != null && animation.isAnimating) {
       animation.cancel();
@@ -194,17 +215,46 @@ class _ScrollToIndex implements PositioningOperation {
   }
 }
 
-class _CompletedOperation implements PositioningOperation {
-  _CompletedOperation(this.done);
+/// A non-animated jump returned from scrollToIndex (e.g. zero duration).
+/// Cancelling its handle must still revoke a pending reveal and settle done.
+class _JumpToIndexOperation implements PositioningOperation {
+  _JumpToIndexOperation({
+    required Future<void> future,
+    required this.delegate,
+    required this.owner,
+  }) {
+    future.then(
+      (_) => _complete(),
+      onError: (Object error, StackTrace stack) {
+        if (!_completer.isCompleted) {
+          _completer.completeError(error, stack);
+        }
+      },
+    );
+  }
+
+  final ExtentManager? delegate;
+  final Object? owner;
+  final _completer = Completer<void>();
 
   @override
-  final Future<void> done;
+  Future<void> get done => _completer.future;
 
   @override
   bool get isAnimating => false;
 
   @override
-  void cancel() {}
+  void cancel() {
+    if (_completer.isCompleted) return;
+    if (owner != null && identical(delegate?.revealOwner, owner)) {
+      delegate!.cancelReveal(owner);
+    }
+    _complete();
+  }
+
+  void _complete() {
+    if (!_completer.isCompleted) _completer.complete();
+  }
 }
 
 /// Whether a jump to an index may leave blank space where the content does
@@ -419,14 +469,17 @@ class ListController extends ChangeNotifier {
         !position.hasPixels ||
         !position.hasContentDimensions ||
         duration <= Duration.zero) {
+      final jump = jumpToIndex(
+        index,
+        alignment: alignment,
+        offset: offset,
+        targetRectResolver: targetRectResolver,
+      );
       return AnimationHandle._([
-        _CompletedOperation(
-          jumpToIndex(
-            index,
-            alignment: alignment,
-            offset: offset,
-            targetRectResolver: targetRectResolver,
-          ),
+        _JumpToIndexOperation(
+          future: jump,
+          delegate: _delegate,
+          owner: _delegate?.revealOwner,
         ),
       ]);
     }
@@ -451,6 +504,9 @@ class ListController extends ChangeNotifier {
   /// that has reached its target but has not yet corrected estimated extents.
   void cancelPositioning() {
     _delegate?.cancelReveal();
+    // Release an existing hold immediately; any replacement animation below
+    // acquires its own hold. Stale completion callbacks cannot release it.
+    _delegate?.delegate.holdOverscrollSpace = false;
     for (final animation in _animations.toList()) {
       animation.cancel();
     }
