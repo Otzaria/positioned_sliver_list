@@ -13,6 +13,9 @@ class SliverLayoutState {
   bool layoutRelevantResize = false;
   int? extentRevision;
   bool? precalculateExtents;
+
+  /// First appearance in the viewport's layout pass; null until laid out.
+  int? firstLayoutOrder;
 }
 
 class LayoutPass {
@@ -33,22 +36,20 @@ class LayoutPass {
 
   final sliversDuringLayout = <RenderSuperSliverList>[];
 
-  // A viewport can have many separate slivers. Keep first-layout indices
-  // alongside the ordered list so repeated correction passes do not perform
-  // a linear indexOf search for every sliver (quadratic overall).
-  final _layoutOrder = <RenderSuperSliverList, int>{};
-
-  /// Records a sliver at most once, preserving its first order in this pass.
+  /// Records the first appearance of a sliver in this layout pass.
+  ///
+  /// Reuse the existing per-sliver state map rather than allocating a second
+  /// map every frame. This avoids an O(n) indexOf scan for each delayed sliver.
   void recordLaidOutSliver(RenderSuperSliverList sliver) {
-    _layoutOrder.putIfAbsent(sliver, () {
-      final order = sliversDuringLayout.length;
-      sliversDuringLayout.add(sliver);
-      return order;
-    });
+    final state = getLayoutState(sliver);
+    if (state.firstLayoutOrder != null) return;
+    state.firstLayoutOrder = sliversDuringLayout.length;
+    sliversDuringLayout.add(sliver);
   }
 
   /// The first-layout order, or -1 when this sliver has not laid out.
-  int layoutOrderOf(RenderSuperSliverList sliver) => _layoutOrder[sliver] ?? -1;
+  int layoutOrderOf(RenderSuperSliverList sliver) =>
+      _sliverLayoutState[sliver]?.firstLayoutOrder ?? -1;
 
   /// Returns whether provided sliver is laid out before a sliver with active
   /// scroll offset estimation. If there is no sliver with active scroll offset
